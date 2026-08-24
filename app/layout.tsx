@@ -6,8 +6,8 @@ import "./globals.css";
 const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "700"], variable: "--font-mono", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "Relay · zmzai cloud",
-  description: "OpenAI 兼容的统一模型 API 入口 · zmzai cloud 子产品",
+  title: "Relay · zmzai.cloud",
+  description: "OpenAI 兼容的统一模型 API 入口 · zmzai.cloud 子产品",
 };
 
 export const viewport: Viewport = { themeColor: "#FFFFFF" };

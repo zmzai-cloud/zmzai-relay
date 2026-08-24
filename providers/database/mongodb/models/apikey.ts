@@ -9,7 +9,7 @@ import {
 
 import { currentPeriod } from "@/providers/billing/period";
 
-/** 中转驿发给调用方的 API key。 */
+/** Relay 发给调用方的 API key。 **/
 export interface ApiKeyRecord {
   keyHash: string;             // sha256，select:false，唯一索引
   prefix: string;              // "zrk_ab12cd34" 前 12 位，展示/检索用

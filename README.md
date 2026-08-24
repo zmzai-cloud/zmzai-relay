@@ -1,4 +1,4 @@
-# 中转驿 · zmzai cloud
+# Relay · zmzai.cloud
 
 `m.zmzai.cloud` 是 ZMZ AI 的模型中转与额度服务。
 

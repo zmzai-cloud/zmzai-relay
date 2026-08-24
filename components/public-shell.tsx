@@ -53,7 +53,7 @@ export function PublicShell({
       <main className="page-shell flex-1 py-10">{children}</main>
       <footer className="border-t border-line">
         <div className="page-shell flex items-center justify-between py-6 font-mono text-xs text-muted">
-          <span>relay · zmzai cloud</span>
+          <span>relay · zmzai.cloud</span>
           <Link href="https://zmzai.cloud" className="hover:text-accent">产品矩阵 →</Link>
         </div>
       </footer>

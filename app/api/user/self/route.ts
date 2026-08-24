@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
     data: {
       quota: Math.round(availableMicros * NEW_API_UNITS_PER_MICRO_DOLLAR),
       used_quota: Math.round(usedMicros * NEW_API_UNITS_PER_MICRO_DOLLAR),
-      group: account ? "zmzai cloud" : "待分配额度",
+      group: account ? "zmzai.cloud" : "待分配额度",
       currency: "USD",
       is_valid: true,
     },
