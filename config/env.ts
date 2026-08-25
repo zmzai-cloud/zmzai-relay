@@ -34,6 +34,10 @@ const envSchema = z.object({
   RELAY_AGENT_SERVICE_SECRET_PREVIOUS: optionalEnvString(),
   /** Agent 内部调用走本机 Relay，避免经公网域名回环。 */
   RELAY_INTERNAL_ORIGIN: z.string().url().default("http://127.0.0.1:3002"),
+  /** 本地工具桥接端点（zmzai-bridge，b.zmzai.cloud 侧）。Agent 需要用户本机能力时经此下发。 */
+  RELAY_BRIDGE_URL: z.string().url().default("http://127.0.0.1:8787"),
+  /** 调用桥接内部 API 的 Token；未设置时回退 bridge 仓库的 dev 默认值。生产必须设置。 */
+  RELAY_BRIDGE_TOKEN: optionalEnvString(),
 });
 
 export type ServerEnv = z.infer<typeof envSchema>;
