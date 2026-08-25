@@ -123,7 +123,9 @@ export function ChannelAdminPanel({ initialChannels }: { initialChannels: Channe
                     <td className="px-4 py-3 font-mono text-xs text-muted">P{channel.priority}</td>
                     <td className="px-4 py-3 font-mono text-xs text-muted">{channel.models.map((mapping) => (mapping.public === mapping.upstream ? mapping.public : `${mapping.public}→${mapping.upstream}`)).join(" · ")}</td>
                     <td className="px-4 py-3 font-mono text-xs text-muted">
-                      {channel.inputCostPer1kTokensMicros === null ? "待配置" : `${cnyMicrosLabel(channel.inputCostPer1kTokensMicros, 4)} / ${cnyMicrosLabel(channel.outputCostPer1kTokensMicros ?? 0, 4)}`}
+                      {channel.inputCostPer1kTokensMicros === null
+                        ? (Object.keys(channel.modelCosts ?? {}).length > 0 ? "模型级覆盖" : "待配置")
+                        : `${cnyMicrosLabel(channel.inputCostPer1kTokensMicros, 4)} / ${cnyMicrosLabel(channel.outputCostPer1kTokensMicros ?? 0, 4)}`}
                       {Object.keys(channel.modelCosts ?? {}).length > 0 ? <span className="block">覆盖 {Object.keys(channel.modelCosts).length} 个模型</span> : null}
                     </td>
                     <td className="px-4 py-3"><Badge variant={channel.enabled ? "success" : "outline"} size="sm">{channel.enabled ? "启用" : "停用"}</Badge></td>
