@@ -16,6 +16,11 @@ interface Channel {
 interface ChannelForm {
   name: string; baseUrl: string; apiKey: string; modelsText: string; priority: number; inputCost: number; outputCost: number; cacheReadCost: number; cacheWriteCost: number; modelCostsText: string; timeoutMs: number; enabled: boolean; costsPending: boolean;
 }
+interface ChannelTestResult {
+  ok: boolean;
+  models: { ok: boolean; status: number; latencyMs: number; error?: string } | null;
+  completion: { ok: boolean; status: number; latencyMs: number; model: string; error?: string } | null;
+}
 
 const defaultMappings = "deepseek-v4-flash=deepseek-v4-flash, deepseek-v4-pro=deepseek-v4-pro";
 const emptyForm = (): ChannelForm => ({ name: "", baseUrl: "", apiKey: "", modelsText: defaultMappings, priority: 10, inputCost: 0, outputCost: 0, cacheReadCost: 0, cacheWriteCost: 0, modelCostsText: "", timeoutMs: 60000, enabled: true, costsPending: true });
@@ -50,6 +55,15 @@ function toPayload(form: ChannelForm, requireKey: boolean) {
   };
 }
 
+/** 双段探测结果文案：以真实推理（completion）结果为准，/models 只作连通性诊断。 */
+function formatTestResult(json: ChannelTestResult): string {
+  const completion = json.completion;
+  if (completion?.ok) return `推理连通 (${completion.latencyMs}ms · ${completion.model})`;
+  if (completion) return `推理失败：${completion.status || completion.error || "未知"}（models ${json.models?.status ?? "?"}）`;
+  if (json.models?.ok) return `已连通 (${json.models.latencyMs}ms，无模型映射)`;
+  return `连接失败：${json.models?.status || json.models?.error || "未知"}`;
+}
+
 export function ChannelAdminPanel({ initialChannels }: { initialChannels: Channel[] }) {
   const [channels, setChannels] = useState(initialChannels);
   const [form, setForm] = useState<ChannelForm>(emptyForm);
@@ -75,8 +89,9 @@ export function ChannelAdminPanel({ initialChannels }: { initialChannels: Channe
   }
   async function testChannel(id: string) {
     setTestResult((previous) => ({ ...previous, [id]: "测试中..." }));
-    const response = await fetch(`/api/admin/channels/${id}/test`, { method: "POST" }); const json = await response.json().catch(() => ({}));
-    setTestResult((previous) => ({ ...previous, [id]: json.ok ? `已连通 (${json.latencyMs}ms${json.mode === "completion" ? "，最小调用" : ""})` : `失败：${json.status || json.error}` }));
+    const response = await fetch(`/api/admin/channels/${id}/test`, { method: "POST" });
+    const json = await response.json().catch(() => ({})) as ChannelTestResult;
+    setTestResult((previous) => ({ ...previous, [id]: formatTestResult(json) }));
   }
   const update = <K extends keyof ChannelForm>(key: K, value: ChannelForm[K]) => setForm((previous) => ({ ...previous, [key]: value }));
 
