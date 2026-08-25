@@ -16,7 +16,7 @@
 ## 当前边界
 
 - 这是 ZMZ AI 内部的 Relay，不是通用商业 API 网关；
-- 管理端依赖牧之账号体系，并额外要求管理员角色；
+- 管理端依赖知末智云账号体系，并额外要求管理员角色；
 - 额度、套餐和上游策略仍在迭代，README 只描述当前仓库边界。
 
 ## 目录
@@ -55,8 +55,8 @@ pnpm seed:deepseek
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
 | `APP_URL` | `http://localhost:3000` | 当前 Relay 服务地址 |
-| `MONGODB_URI` | 无 | 与牧之账号体系共用的 MongoDB |
-| `AUTH_SECRET` | 无 | 必须与牧之一致，用于校验 session |
+| `MONGODB_URI` | 无 | 与知末智云账号体系共用的 MongoDB |
+| `AUTH_SECRET` | 无 | 必须与知末智云一致，用于校验 session |
 | `SESSION_COOKIE_NAME` | `muzhi_session` | 登录态 cookie 名称 |
 | `SESSION_COOKIE_DOMAIN` | 空 | 多子域共享登录时使用 |
 | `RELAY_DEFAULT_UPSTREAM_TIMEOUT_MS` | `60000` | 上游模型请求默认超时 |
@@ -69,8 +69,8 @@ pnpm seed:deepseek
 
 ## 相关仓库
 
-- [`zmzai-agent`](https://github.com/Ulanxx/zmzai-agent)：Agent 编排层，通过 Relay 调模型；
-- [`zmzai-sandbox`](https://github.com/Ulanxx/zmzai-sandbox)：执行层，通过 Relay 校验 `sandbox_key` 和模型调用；
-- [`zmzai-db`](https://github.com/Ulanxx/zmzai-db)：共享账号与 session schema。
+- [`zmzai-agent`](https://github.com/zmzai-cloud/zmzai-agent)：Agent 编排层，通过 Relay 调模型；
+- [`zmzai-sandbox`](https://github.com/zmzai-cloud/zmzai-sandbox)：执行层，通过 Relay 校验 `sandbox_key` 和模型调用；
+- [`zmzai-db`](https://github.com/zmzai-cloud/zmzai-db)：共享账号与 session schema。
 
-Apache-2.0 · 牧之
+Apache-2.0 · 知末智云
