@@ -12,6 +12,8 @@ export type SupportedModel = (typeof supportedModels)[number];
 
 export interface ModelPriceRecord {
   model: string;
+  /** 售价 = 官方价 × multiplier（管理后台按倍率自动算价，手动改价后仅作记录） */
+  multiplier: number;
   inputPricePer1kMicros: number;
   outputPricePer1kMicros: number;
   cacheReadPricePer1kMicros: number;
@@ -28,6 +30,7 @@ export interface ModelPriceRecord {
 
 const schema = new Schema<ModelPriceRecord>({
   model: { type: String, required: true, trim: true, unique: true, maxlength: 120, match: /^[a-z0-9][a-z0-9._-]*$/i },
+  multiplier: { type: Number, required: true, default: 1, min: 0.01, max: 100 },
   inputPricePer1kMicros: { type: Number, required: true, min: 0 },
   outputPricePer1kMicros: { type: Number, required: true, min: 0 },
   cacheReadPricePer1kMicros: { type: Number, required: true, default: 0, min: 0 },

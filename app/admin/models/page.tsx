@@ -60,6 +60,7 @@ export default async function ModelsPage() {
       <div className="mt-3">
         <ModelsPanel initialPrices={models.map((m) => ({
           model: m.model,
+          multiplier: m.multiplier ?? 1,
           inputPricePer1kMicros: m.inputPricePer1kMicros,
           outputPricePer1kMicros: m.outputPricePer1kMicros,
           cacheReadPricePer1kMicros: m.cacheReadPricePer1kMicros,
