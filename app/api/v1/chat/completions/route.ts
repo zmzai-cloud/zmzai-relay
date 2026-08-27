@@ -11,7 +11,8 @@ import { UserModel } from "@zmzai/db";
 import { chargeMicros, maximumChargeMicros, reserveBalance, releaseReservation, settleReservation, BillingError } from "@/providers/billing/service";
 import { connectMongo } from "@/providers/database/mongodb/connection";
 import { ChannelAttemptModel } from "@/providers/database/mongodb/models/channel-attempt";
-import { ChannelModel, resolveChannelCosts, CHANNEL_COOLDOWN_THRESHOLD, CHANNEL_COOLDOWN_MS, type ModelCostOverride } from "@/providers/database/mongodb/models/channel";
+import { ChannelModel, resolveChannelCosts, type ModelCostOverride } from "@/providers/database/mongodb/models/channel";
+import { markChannelSuccess, markChannelFailure } from "@/providers/channels/health";
 import { ModelPriceModel, reasoningEfforts } from "@/providers/database/mongodb/models/model-price";
 import { RateLimitBucketModel } from "@/providers/database/mongodb/models/rate-limit";
 import { UsageModel } from "@/providers/database/mongodb/models/usage";
@@ -224,21 +225,6 @@ export async function POST(req: NextRequest) {
 /** 流式 idle 超时：只要在此时长内收到过新数据就重置计时；连续无新数据
  *  才判定为死连接。活跃的长输出（如几百行脚本）不会被误杀。 */
 const UPSTREAM_STREAM_IDLE_TIMEOUT_MS = 120_000;
-
-/** 渠道健康计数：成功即清零并解除冷却；连续失败达阈值进入冷却 5 分钟。 */
-async function markChannelSuccess(channelId: import("mongoose").Types.ObjectId): Promise<void> {
-  await ChannelModel.updateOne({ _id: channelId, consecutiveFailures: { $ne: 0 } }, { $set: { consecutiveFailures: 0, cooldownUntil: null } });
-}
-async function markChannelFailure(channelId: import("mongoose").Types.ObjectId): Promise<void> {
-  const updated = await ChannelModel.findOneAndUpdate(
-    { _id: channelId, $or: [{ cooldownUntil: null }, { cooldownUntil: { $lte: new Date() } }] },
-    { $inc: { consecutiveFailures: 1 } },
-    { new: true },
-  ).select("consecutiveFailures").lean();
-  if (updated && updated.consecutiveFailures >= CHANNEL_COOLDOWN_THRESHOLD) {
-    await ChannelModel.updateOne({ _id: channelId }, { $set: { cooldownUntil: new Date(Date.now() + CHANNEL_COOLDOWN_MS), consecutiveFailures: 0 } });
-  }
-}
 
 function streamResponse(body: ReadableStream<Uint8Array>, usageId: import("mongoose").Types.ObjectId, channel: { _id: import("mongoose").Types.ObjectId; inputCostPer1kTokensMicros: number | null; outputCostPer1kTokensMicros: number | null; cacheReadCostPer1kTokensMicros: number | null; cacheWriteCostPer1kTokensMicros: number | null; modelCosts: Record<string, ModelCostOverride> }, upstreamModel: string, publicModel: string, price: { inputPricePer1kMicros: number; outputPricePer1kMicros: number; cacheReadPricePer1kMicros: number; cacheWritePricePer1kMicros: number }, started: number) {
   const stream = new ReadableStream<Uint8Array>({ async start(controller) {

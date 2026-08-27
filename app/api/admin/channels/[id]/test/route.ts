@@ -4,6 +4,7 @@ import { AdminRequiredError, requireAdmin } from "@/providers/auth/session";
 import { connectMongo } from "@/providers/database/mongodb/connection";
 import { ChannelModel } from "@/providers/database/mongodb/models/channel";
 import { safeUpstreamFetch } from "@/providers/network/safe-upstream-fetch";
+import { markChannelSuccess, markChannelFailure } from "@/providers/channels/health";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +14,8 @@ function err(code: string, status: number, message: string) {
 
 /** 双段探测：先 /models 验证连通性，再用渠道第一个模型映射做最小 completion 验证真实推理链路。
  *  /models 探测通过 ≠ 推理可用（上游中转站的模型列表与推理端点可能处于不同状态，
- *  曾出现 /models 全通但 chat/completions 全 503），必须以 completion 结果为准。 */
+ *  曾出现 /models 全通但 chat/completions 全 503），必须以 completion 结果为准。
+ *  completion 结果联动渠道健康度：成功清零计数并解除冷却（手动救活），失败计入连续失败。 */
 export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -60,12 +62,24 @@ export async function POST(
       body: JSON.stringify({ model, max_tokens: 1, messages: [{ role: "user", content: "ping" }] }),
       signal: AbortSignal.timeout(20000),
     });
+    if (completion.ok) {
+      // 真实推理成功 = 渠道确认恢复：清零失败计数并解除冷却（管理员可手动救活冷却中的渠道）
+      await markChannelSuccess(channel._id);
+      return NextResponse.json({
+        ok: true,
+        models,
+        completion: { ok: true, status: completion.status, latencyMs: Date.now() - completionStartedAt, model },
+      });
+    }
+    const details = (await completion.text().catch(() => "")).slice(0, 300);
+    await markChannelFailure(channel._id);
     return NextResponse.json({
-      ok: completion.ok,
+      ok: false,
       models,
-      completion: { ok: completion.ok, status: completion.status, latencyMs: Date.now() - completionStartedAt, model },
+      completion: { ok: false, status: completion.status, latencyMs: Date.now() - completionStartedAt, model, error: details || `HTTP ${completion.status}` },
     });
   } catch (e) {
+    await markChannelFailure(channel._id);
     return NextResponse.json({
       ok: false,
       models,
