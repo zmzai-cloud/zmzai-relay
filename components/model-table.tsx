@@ -70,16 +70,18 @@ export function ModelTable({ channels }: { channels: PublicChannel[] }) {
 
   const thSort = (key: SortKey) => {
     const active = sort?.key === key;
+    const ariaSort = !active ? undefined : sort?.dir === "asc" ? "ascending" : "descending";
     return (
-      <button
-        type="button"
-        onClick={() => toggleSort(key)}
-        className={`inline-flex items-center gap-1 transition-colors hover:text-accent ${active ? "text-accent" : ""}`}
-        aria-label={`按${key === "context" ? "上下文" : key === "input" ? "输入价" : "输出价"}排序`}
-      >
-        {key === "context" ? "上下文" : key === "input" ? "输入 / 1K" : "输出 / 1K"}
-        <Icon name={active && sort?.dir === "asc" ? "arrow-up" : "arrow-down"} size={11} className={active ? "" : "opacity-30"} />
-      </button>
+      <th className="px-4 py-2.5 text-right font-normal" aria-sort={ariaSort}>
+        <button
+          type="button"
+          onClick={() => toggleSort(key)}
+          className={`inline-flex items-center gap-1 transition-colors hover:text-accent ${active ? "text-accent" : ""}`}
+        >
+          {key === "context" ? "上下文" : key === "input" ? "输入 / 1K" : "输出 / 1K"}
+          <Icon name={active && sort?.dir === "asc" ? "arrow-up" : "arrow-down"} size={11} className={active ? "" : "opacity-30"} />
+        </button>
+      </th>
     );
   };
 
@@ -101,9 +103,9 @@ export function ModelTable({ channels }: { channels: PublicChannel[] }) {
             <tr className="border-b border-line bg-surface text-left font-mono text-xs text-muted">
               <th className="px-4 py-2.5 font-normal">模型</th>
               <th className="px-4 py-2.5 font-normal">渠道</th>
-              <th className="px-4 py-2.5 text-right font-normal">{thSort("context")}</th>
-              <th className="px-4 py-2.5 text-right font-normal">{thSort("input")}</th>
-              <th className="px-4 py-2.5 text-right font-normal">{thSort("output")}</th>
+              {thSort("context")}
+              {thSort("input")}
+              {thSort("output")}
               <th className="px-4 py-2.5 text-right font-normal">缓存读 / 1K</th>
             </tr>
           </thead>

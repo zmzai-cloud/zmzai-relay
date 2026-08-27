@@ -13,40 +13,40 @@ import type { PaletteItem } from "@/components/command-palette";
 
 const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_URL ?? "https://auth.zmzai.cloud";
 
-type NavItem = { label: string; href: string; icon: IconName };
+type NavItem = { label: string; href: string; icon: IconName; keywords?: string };
 type NavSection = { label: string; items: NavItem[] };
 
 const publicSection: NavSection = {
   label: "广场",
   items: [
-    { label: "模型广场", href: "/models", icon: "grid" },
-    { label: "API 文档", href: "/docs", icon: "book" },
+    { label: "模型广场", href: "/models", icon: "grid", keywords: "models model" },
+    { label: "API 文档", href: "/docs", icon: "book", keywords: "docs api" },
   ],
 };
 
 const consoleSection: NavSection = {
   label: "控制台",
   items: [
-    { label: "概览", href: "/dashboard", icon: "home" },
-    { label: "API Keys", href: "/dashboard/keys", icon: "key" },
-    { label: "用量", href: "/dashboard/activity", icon: "activity" },
-    { label: "账单", href: "/dashboard/ledger", icon: "receipt" },
-    { label: "额度充值", href: "/dashboard/billing", icon: "wallet" },
+    { label: "概览", href: "/dashboard", icon: "home", keywords: "overview dashboard" },
+    { label: "API Keys", href: "/dashboard/keys", icon: "key", keywords: "keys token" },
+    { label: "用量", href: "/dashboard/activity", icon: "activity", keywords: "usage calls" },
+    { label: "账单", href: "/dashboard/ledger", icon: "receipt", keywords: "ledger billing" },
+    { label: "额度充值", href: "/dashboard/billing", icon: "wallet", keywords: "topup balance" },
   ],
 };
 
 const adminSection: NavSection = {
   label: "管理",
   items: [
-    { label: "运营概览", href: "/admin", icon: "gauge" },
-    { label: "模型与价格", href: "/admin/models", icon: "coins" },
-    { label: "渠道与路由", href: "/admin/channels", icon: "link" },
-    { label: "用户与余额", href: "/admin/users", icon: "users" },
-    { label: "毛利报表", href: "/admin/profit", icon: "trend-up" },
-    { label: "充值订单", href: "/admin/orders", icon: "receipt" },
-    { label: "调用与账本", href: "/admin/activity", icon: "activity" },
-    { label: "运营调整", href: "/admin/operations", icon: "sliders" },
-    { label: "全部 Token", href: "/admin/keys", icon: "key" },
+    { label: "运营概览", href: "/admin", icon: "gauge", keywords: "ops overview" },
+    { label: "模型与价格", href: "/admin/models", icon: "coins", keywords: "prices models" },
+    { label: "渠道与路由", href: "/admin/channels", icon: "link", keywords: "channels routing" },
+    { label: "用户与余额", href: "/admin/users", icon: "users", keywords: "users balance" },
+    { label: "毛利报表", href: "/admin/profit", icon: "trend-up", keywords: "profit margin" },
+    { label: "充值订单", href: "/admin/orders", icon: "receipt", keywords: "orders topup" },
+    { label: "调用与账本", href: "/admin/activity", icon: "activity", keywords: "usage ledger" },
+    { label: "运营调整", href: "/admin/operations", icon: "sliders", keywords: "operations" },
+    { label: "全部 Token", href: "/admin/keys", icon: "key", keywords: "all keys" },
   ],
 };
 
@@ -115,10 +115,12 @@ export function AppShell({
 
   const isLoggedIn = Boolean(user);
   const sections = useMemo<NavSection[]>(() => {
-    const all = [publicSection, consoleSection];
+    const all = [publicSection];
+    // 未登录不渲染控制台组（点了也只会被 307 到登录页），登录后出现
+    if (user) all.push(consoleSection);
     if (isAdminUser) all.push(adminSection);
     return all;
-  }, [isAdminUser]);
+  }, [isAdminUser, user]);
 
   // 顶栏标题：当前激活项的 label（取最长匹配，/admin/models 优先于 /admin）
   const currentLabel = useMemo(() => {
@@ -169,6 +171,7 @@ export function AppShell({
         hint: section.label,
         group: "导航" as const,
         icon: item.icon as PaletteItem["icon"],
+        keywords: item.keywords,
         run: () => router.push(item.href),
       })),
     );
