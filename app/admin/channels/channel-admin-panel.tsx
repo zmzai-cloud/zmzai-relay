@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Badge, Button, Input } from "@zmzai/theme";
 import { cnyMicrosLabel, cnyYuanToMicros, microsToCnyYuan } from "@/providers/billing/currency";
+import { OFFICIAL_PRICES } from "@/providers/catalog/official-prices";
 
 interface ModelMapping { public: string; upstream: string; }
 interface ModelCostEntry { inputCostPer1kTokensMicros: number; outputCostPer1kTokensMicros: number; cacheReadCostPer1kTokensMicros?: number; cacheWriteCostPer1kTokensMicros?: number; }
@@ -11,10 +12,11 @@ interface Channel {
   inputCostPer1kTokensMicros: number | null; outputCostPer1kTokensMicros: number | null;
   cacheReadCostPer1kTokensMicros: number | null; cacheWriteCostPer1kTokensMicros: number | null;
   modelCosts: Record<string, ModelCostEntry>;
+  costMultiplier: number;
   enabled: boolean; timeoutMs: number;
 }
 interface ChannelForm {
-  name: string; baseUrl: string; apiKey: string; modelsText: string; priority: number; inputCost: number; outputCost: number; cacheReadCost: number; cacheWriteCost: number; modelCostsText: string; timeoutMs: number; enabled: boolean; costsPending: boolean;
+  name: string; baseUrl: string; apiKey: string; modelsText: string; priority: number; inputCost: number; outputCost: number; cacheReadCost: number; cacheWriteCost: number; modelCostsText: string; costMultiplier: number; timeoutMs: number; enabled: boolean; costsPending: boolean;
 }
 interface ChannelTestResult {
   ok: boolean;
@@ -23,9 +25,9 @@ interface ChannelTestResult {
 }
 
 const defaultMappings = "deepseek-v4-flash=deepseek-v4-flash, deepseek-v4-pro=deepseek-v4-pro";
-const emptyForm = (): ChannelForm => ({ name: "", baseUrl: "", apiKey: "", modelsText: defaultMappings, priority: 10, inputCost: 0, outputCost: 0, cacheReadCost: 0, cacheWriteCost: 0, modelCostsText: "", timeoutMs: 60000, enabled: true, costsPending: true });
+const emptyForm = (): ChannelForm => ({ name: "", baseUrl: "", apiKey: "", modelsText: defaultMappings, priority: 10, inputCost: 0, outputCost: 0, cacheReadCost: 0, cacheWriteCost: 0, modelCostsText: "", costMultiplier: 1, timeoutMs: 60000, enabled: true, costsPending: true });
 const modelCostsText = (modelCosts: Record<string, ModelCostEntry>) => Object.entries(modelCosts ?? {}).map(([modelName, entry]) => `${modelName}=${microsToCnyYuan(entry.inputCostPer1kTokensMicros)}/${microsToCnyYuan(entry.outputCostPer1kTokensMicros)}`).join(", ");
-const formForChannel = (channel: Channel): ChannelForm => ({ name: channel.name, baseUrl: channel.baseUrl, apiKey: "", modelsText: channel.models.map((mapping) => `${mapping.public}=${mapping.upstream}`).join(", "), priority: channel.priority, inputCost: channel.inputCostPer1kTokensMicros === null ? 0 : microsToCnyYuan(channel.inputCostPer1kTokensMicros), outputCost: channel.outputCostPer1kTokensMicros === null ? 0 : microsToCnyYuan(channel.outputCostPer1kTokensMicros), cacheReadCost: channel.cacheReadCostPer1kTokensMicros === null ? 0 : microsToCnyYuan(channel.cacheReadCostPer1kTokensMicros), cacheWriteCost: channel.cacheWriteCostPer1kTokensMicros === null ? 0 : microsToCnyYuan(channel.cacheWriteCostPer1kTokensMicros), modelCostsText: modelCostsText(channel.modelCosts), timeoutMs: channel.timeoutMs, enabled: channel.enabled, costsPending: channel.inputCostPer1kTokensMicros === null });
+const formForChannel = (channel: Channel): ChannelForm => ({ name: channel.name, baseUrl: channel.baseUrl, apiKey: "", modelsText: channel.models.map((mapping) => `${mapping.public}=${mapping.upstream}`).join(", "), priority: channel.priority, inputCost: channel.inputCostPer1kTokensMicros === null ? 0 : microsToCnyYuan(channel.inputCostPer1kTokensMicros), outputCost: channel.outputCostPer1kTokensMicros === null ? 0 : microsToCnyYuan(channel.outputCostPer1kTokensMicros), cacheReadCost: channel.cacheReadCostPer1kTokensMicros === null ? 0 : microsToCnyYuan(channel.cacheReadCostPer1kTokensMicros), cacheWriteCost: channel.cacheWriteCostPer1kTokensMicros === null ? 0 : microsToCnyYuan(channel.cacheWriteCostPer1kTokensMicros), modelCostsText: modelCostsText(channel.modelCosts), costMultiplier: channel.costMultiplier ?? 1, timeoutMs: channel.timeoutMs, enabled: channel.enabled, costsPending: channel.inputCostPer1kTokensMicros === null });
 
 /** 解析「模型=输入/输出」文本（元/1k）；格式不合法的条目直接丢弃，保存前由服务端 zod 兜底。 */
 function parseModelCosts(text: string): Record<string, ModelCostEntry> {
@@ -51,6 +53,7 @@ function toPayload(form: ChannelForm, requireKey: boolean) {
     cacheReadCostPer1kTokensMicros: form.costsPending ? null : cnyYuanToMicros(form.cacheReadCost),
     cacheWriteCostPer1kTokensMicros: form.costsPending ? null : cnyYuanToMicros(form.cacheWriteCost),
     modelCosts: parseModelCosts(form.modelCostsText),
+    costMultiplier: form.costMultiplier,
     enabled: form.enabled, timeoutMs: form.timeoutMs,
   };
 }
@@ -71,12 +74,13 @@ export function ChannelAdminPanel({ initialChannels }: { initialChannels: Channe
   const [busy, setBusy] = useState(false);
   const [testResult, setTestResult] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const editing = channels.find((channel) => channel._id === editingId) ?? null;
 
-  function beginEdit(channel: Channel) { setEditingId(channel._id); setForm(formForChannel(channel)); setError(null); }
-  function cancelEdit() { setEditingId(null); setForm(emptyForm()); setError(null); }
+  function beginEdit(channel: Channel) { setEditingId(channel._id); setForm(formForChannel(channel)); setError(null); setNotice(null); }
+  function cancelEdit() { setEditingId(null); setForm(emptyForm()); setError(null); setNotice(null); }
   async function save(event: React.FormEvent) {
-    event.preventDefault(); setBusy(true); setError(null);
+    event.preventDefault(); setBusy(true); setError(null); setNotice(null);
     const requireKey = !editingId;
     if (requireKey && !form.apiKey.trim()) { setBusy(false); setError("请填写上游 Key"); return; }
     const response = await fetch(editingId ? `/api/admin/channels/${editingId}` : "/api/admin/channels", {
@@ -94,6 +98,24 @@ export function ChannelAdminPanel({ initialChannels }: { initialChannels: Channe
     setTestResult((previous) => ({ ...previous, [id]: formatTestResult(json) }));
   }
   const update = <K extends keyof ChannelForm>(key: K, value: ChannelForm[K]) => setForm((previous) => ({ ...previous, [key]: value }));
+
+  /** 按「官方价 × 成本倍率」生成模型级成本覆盖（元/1k）；不在官方价目表中的模型跳过。 */
+  function applyCostMultiplier() {
+    const models = form.modelsText.split(",").map((item) => item.trim()).filter(Boolean).map((pair) => (pair.split("=")[0] ?? "").trim());
+    const skipped: string[] = [];
+    const parts: string[] = [];
+    for (const model of models) {
+      const official = OFFICIAL_PRICES[model];
+      if (!official) { skipped.push(model); continue; }
+      const input = official.inputCnyPer1M * form.costMultiplier / 1000; // 元/1M → 元/1k
+      const output = official.outputCnyPer1M * form.costMultiplier / 1000;
+      parts.push(`${model}=${input.toFixed(4)}/${output.toFixed(4)}`);
+    }
+    if (!parts.length) { setError("模型映射中没有命中官方价目表的模型，请手动填写成本"); setNotice(null); return; }
+    update("modelCostsText", parts.join(", "));
+    setError(null);
+    setNotice(skipped.length ? `已填充 ${parts.length} 个模型；未命中官方价目表已跳过：${skipped.join(", ")}` : `已按官方价 × ${form.costMultiplier} 生成成本覆盖（${parts.length} 个模型）`);
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -168,7 +190,12 @@ export function ChannelAdminPanel({ initialChannels }: { initialChannels: Channe
             <label className="flex flex-col gap-1.5"><span className="text-xs text-muted">缓存写成本（元/1k）</span><Input disabled={form.costsPending} type="number" min="0" step="0.0001" value={form.cacheWriteCost} onChange={(event) => update("cacheWriteCost", Number(event.target.value))} className="disabled:opacity-50" /></label>
           </div>
           <label className="flex flex-col gap-1.5"><span className="text-xs text-muted">模型级成本覆盖（模型=输入/输出 元/1k，逗号分隔；同渠道内模型单价不同时填，优先于渠道级）</span><Input value={form.modelCostsText} onChange={(event) => update("modelCostsText", event.target.value)} className="font-mono text-xs" placeholder="deepseek-v4-flash=0.1/0.2, deepseek-v4-pro=0.3/0.6" /></label>
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3">
+            <label className="flex flex-col gap-1.5"><span className="text-xs text-muted">成本倍率（官方价 × 倍率 = 成本，仅用于自动填充）</span><Input type="number" min="0.01" step="0.01" value={form.costMultiplier} onChange={(event) => update("costMultiplier", Number(event.target.value))} className="font-mono text-xs" placeholder="例如 0.21（官方 2 折）" /></label>
+            <Button type="button" variant="secondary" onClick={applyCostMultiplier} className="self-end">按倍率填充成本</Button>
+          </div>
           {error ? <p className="text-sm text-danger">{error}</p> : null}
+          {notice ? <p className="text-sm text-accent-readable">{notice}</p> : null}
           <Button disabled={busy} className="self-start">{busy ? "保存中..." : editing ? "保存修改" : "添加渠道"}</Button>
         </form>
       </div>

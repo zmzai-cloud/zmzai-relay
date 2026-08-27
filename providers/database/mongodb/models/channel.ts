@@ -66,6 +66,8 @@ export interface ChannelRecord {
   cacheReadCostPer1kTokensMicros: number | null;
   cacheWriteCostPer1kTokensMicros: number | null;
   modelCosts: Record<string, ModelCostOverride>;
+  /** 成本倍率：管理后台按「官方价 × 倍率」自动填充成本（与模型面板的售价倍率对应） */
+  costMultiplier: number;
   enabled: boolean;
   timeoutMs: number;
   createdAt: Date;
@@ -101,6 +103,7 @@ const channelSchema = new Schema<ChannelRecord>(
     cacheWriteCostPer1kTokensMicros: { type: Number, default: null, min: 0 },
     /* 用 Mixed 而非 Map：lean() 与 JSON 序列化都得到纯对象，admin API 直接透传 */
     modelCosts: { type: Schema.Types.Mixed, default: {} },
+    costMultiplier: { type: Number, required: true, default: 1, min: 0.01, max: 100 },
     enabled: { type: Boolean, required: true, default: true },
     timeoutMs: { type: Number, required: true, default: 60000, min: 1000 },
   },

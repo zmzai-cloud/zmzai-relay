@@ -3,29 +3,9 @@
 import { useRef, useState } from "react";
 import { Badge, Button, Input } from "@zmzai/theme";
 import { cnyMicrosLabel, cnyYuanToMicros, microsToCnyYuan } from "@/providers/billing/currency";
+import { OFFICIAL_PRICES, type OfficialPrice } from "@/providers/catalog/official-prices";
 
 const REASONING_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
-
-/** 官方价目表（2026-08 更新）。单位：元/1M tokens。
- *  GPT 系列官方为美元价，按 $1≈¥6.75 折算，note 标注官方美元价；
- *  DeepSeek 为高峰价（北京时间周一至周五 9-12/14-18 点），闲时减半；
- *  修改售价时建议先核对官方定价页。 */
-interface OfficialPrice {
-  inputCnyPer1M: number;
-  outputCnyPer1M: number;
-  maxInputTokens: number;
-  maxOutputTokens: number;
-  note?: string;
-}
-const OFFICIAL_PRICES: Record<string, OfficialPrice> = {
-  "gpt-5.6-sol": { inputCnyPer1M: 27, outputCnyPer1M: 135, maxInputTokens: 1_050_000, maxOutputTokens: 128_000, note: "$4/$20 促销至 11/21" },
-  "gpt-5.6-terra": { inputCnyPer1M: 13.5, outputCnyPer1M: 81, maxInputTokens: 1_000_000, maxOutputTokens: 128_000, note: "$2/$12" },
-  "gpt-5.6-luna": { inputCnyPer1M: 1.35, outputCnyPer1M: 8.1, maxInputTokens: 1_000_000, maxOutputTokens: 128_000, note: "$0.2/$1.2" },
-  "deepseek-v4-flash": { inputCnyPer1M: 3, outputCnyPer1M: 9, maxInputTokens: 1_000_000, maxOutputTokens: 384_000, note: "高峰价" },
-  "deepseek-v4-pro": { inputCnyPer1M: 9, outputCnyPer1M: 27, maxInputTokens: 1_000_000, maxOutputTokens: 384_000, note: "高峰价" },
-  "mimo-v2.5": { inputCnyPer1M: 1, outputCnyPer1M: 2, maxInputTokens: 1_000_000, maxOutputTokens: 131_072 },
-  "mimo-v2.5-pro": { inputCnyPer1M: 3, outputCnyPer1M: 6, maxInputTokens: 1_000_000, maxOutputTokens: 131_072 },
-};
 
 export interface ModelPriceRow {
   model: string;
@@ -114,6 +94,8 @@ export function ModelsPanel({ initialPrices }: { initialPrices: ModelPriceRow[] 
     };
     setValue("input", (official.inputCnyPer1M * multiplier).toFixed(4));
     setValue("output", (official.outputCnyPer1M * multiplier).toFixed(4));
+    if (official.cacheReadCnyPer1M !== undefined) setValue("cacheRead", (official.cacheReadCnyPer1M * multiplier).toFixed(4));
+    if (official.cacheWriteCnyPer1M !== undefined) setValue("cacheWrite", (official.cacheWriteCnyPer1M * multiplier).toFixed(4));
     setValue("maxInput", String(official.maxInputTokens));
     setValue("maxOutput", String(official.maxOutputTokens));
     setError(null);

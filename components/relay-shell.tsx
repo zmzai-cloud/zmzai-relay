@@ -12,7 +12,7 @@ type NavLeaf = { label: string; href: string; icon?: IconName };
 type NavGroup = { label: string; icon: IconName; defaultHref: string; children: NavLeaf[] };
 type NavNode = NavLeaf | NavGroup;
 
-const adminLinks: Array<[string, string, IconName]> = [["概览", "/admin", "home"], ["模型与价格", "/admin/models", "grid"], ["渠道与路由", "/admin/channels", "link"], ["用户与余额", "/admin/users", "users"], ["运营调整", "/admin/operations", "sliders"], ["充值订单", "/admin/orders", "receipt"], ["调用与账本", "/admin/activity", "activity"], ["全部 Token", "/admin/keys", "key"]] as const;
+const adminLinks: Array<[string, string, IconName]> = [["概览", "/admin", "home"], ["模型与价格", "/admin/models", "grid"], ["渠道与路由", "/admin/channels", "link"], ["用户与余额", "/admin/users", "users"], ["运营调整", "/admin/operations", "sliders"], ["毛利报表", "/admin/profit", "trend-up"], ["充值订单", "/admin/orders", "receipt"], ["调用与账本", "/admin/activity", "activity"], ["全部 Token", "/admin/keys", "key"]] as const;
 
 const userNav: NavNode[] = [
   { label: "概览", href: "/dashboard", icon: "home" },

@@ -19,6 +19,8 @@ const channelConfigFields = {
     cacheReadCostPer1kTokensMicros: z.number().int().min(0).optional(),
     cacheWriteCostPer1kTokensMicros: z.number().int().min(0).optional(),
   })).default({}),
+  // 成本倍率：官方价 × 倍率 = 成本（与模型面板售价倍率对应，仅作管理后台自动填充依据）
+  costMultiplier: z.coerce.number().min(0.01).max(100).default(1),
   enabled: z.boolean(),
   timeoutMs: z.number().int().min(1000).max(300000),
 };
