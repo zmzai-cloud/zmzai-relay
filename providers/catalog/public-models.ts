@@ -2,36 +2,11 @@ import { ChannelModel } from "@/providers/database/mongodb/models/channel";
 import { ModelPriceModel } from "@/providers/database/mongodb/models/model-price";
 import { cnyMicrosLabel } from "@/providers/billing/currency";
 
-export interface PublicModel {
-  model: string;
-  inputPricePer1kMicros: number;
-  outputPricePer1kMicros: number;
-  cacheReadPricePer1kMicros: number;
-  cacheWritePricePer1kMicros: number;
-  maxInputTokens: number;
-  maxOutputTokens: number;
-  allowedReasoningEfforts: string[];
-  routable: boolean;
-}
+// 类型与 moneyMicros 定义在 client-safe 模块：client 组件（model-table 等）
+// 必须从 public-model-types 引用，否则 Mongoose 代码会被打进客户端 bundle。
+export { type PublicModel, type PublicChannelModel, type PublicChannel, moneyMicros } from "@/providers/catalog/public-model-types";
 
-export interface PublicChannelModel {
-  model: string;
-  inputPricePer1kMicros: number;
-  outputPricePer1kMicros: number;
-  cacheReadPricePer1kMicros: number;
-  cacheWritePricePer1kMicros: number;
-  maxInputTokens: number;
-  maxOutputTokens: number;
-  allowedReasoningEfforts: string[];
-  featured: boolean;
-  featuredDescription: string;
-}
-
-export interface PublicChannel {
-  channel: string;
-  priority: number;
-  models: PublicChannelModel[];
-}
+import { type PublicChannel, type PublicChannelModel, type PublicModel, moneyMicros } from "@/providers/catalog/public-model-types";
 
 /** @deprecated Use `getPublicChannels()` instead — channel-first catalog. */
 export async function getPublicModels(): Promise<PublicModel[]> {
@@ -81,10 +56,6 @@ export async function getPublicChannels(): Promise<PublicChannel[]> {
         };
       }),
   })).filter((ch) => ch.models.length > 0);
-}
-
-export function moneyMicros(value: number): string {
-  return cnyMicrosLabel(value);
 }
 
 /** ModelSelector 组件所需数据：推荐模型 + 渠道分组。 */

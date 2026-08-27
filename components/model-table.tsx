@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { Icon } from "@zmzai/theme";
-import type { PublicChannel } from "@/providers/catalog/public-models";
-import { moneyMicros } from "@/providers/catalog/public-models";
+// client 组件禁止从 public-models 引用（会带进 Mongoose），用 client-safe 模块
+import type { PublicChannel } from "@/providers/catalog/public-model-types";
+import { moneyMicros } from "@/providers/catalog/public-model-types";
 
 type FlatModel = {
   key: string;
