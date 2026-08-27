@@ -23,6 +23,46 @@ export function KeyAdminPanel({ initialKeys }: { initialKeys: KeyItem[] }) {
   const [busy, setBusy] = useState(false);
   const [newKey, setNewKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [editingKey, setEditingKey] = useState<KeyItem | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editQuota, setEditQuota] = useState(0);
+  const [editRpm, setEditRpm] = useState(60);
+  const [editModels, setEditModels] = useState("");
+
+  function startEdit(k: KeyItem) {
+    setEditingKey(k);
+    setEditName(k.name);
+    setEditQuota(k.quotaTotalTokens);
+    setEditRpm(k.rateLimitPerMinute);
+    setEditModels(k.allowedModels.join(", "));
+    setError(null);
+  }
+
+  async function saveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingKey) return;
+    setBusy(true);
+    setError(null);
+    const res = await fetch(`/api/admin/keys/${editingKey._id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: editName,
+        quotaTotalTokens: editQuota,
+        rateLimitPerMinute: editRpm,
+        allowedModels: editModels.split(",").map((s) => s.trim()).filter(Boolean),
+      }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      setError(j.error ?? "保存失败");
+      return;
+    }
+    const j = await res.json();
+    setKeys((prev) => prev.map((k) => (k._id === editingKey._id ? { ...k, ...j.key } : k)));
+    setEditingKey(null);
+  }
 
   async function createKey(e: React.FormEvent) {
     e.preventDefault();
@@ -91,7 +131,10 @@ export function KeyAdminPanel({ initialKeys }: { initialKeys: KeyItem[] }) {
                     </td>
                     <td className="px-4 py-3 text-right">
                       {k.status === "active" ? (
-                        <Button type="button" variant="danger" size="sm" onClick={() => revoke(k._id)}>吊销</Button>
+                        <div className="flex shrink-0 items-center justify-end gap-2">
+                          <Button type="button" variant="secondary" size="sm" onClick={() => startEdit(k)}>编辑</Button>
+                          <Button type="button" variant="danger" size="sm" onClick={() => revoke(k._id)}>吊销</Button>
+                        </div>
                       ) : null}
                     </td>
                   </tr>
@@ -128,6 +171,37 @@ export function KeyAdminPanel({ initialKeys }: { initialKeys: KeyItem[] }) {
             <Button type="submit" disabled={busy} className="self-start">{busy ? "创建中…" : "创建 Key"}</Button>
           </form>
         </div>
+
+        {editingKey ? (
+          <div className="rounded-lg border border-line bg-bg p-5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">编辑 Key · {editingKey.name}</h2>
+              <button type="button" onClick={() => setEditingKey(null)} className="text-sm text-muted underline underline-offset-4">取消</button>
+            </div>
+            <form onSubmit={saveEdit} className="mt-4 flex flex-col gap-4">
+              <label className="flex flex-col gap-1.5 text-sm">
+                <span className="text-xs text-muted">名称（备注用途）</span>
+                <Input required value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="muzhi 后端 / 张三" />
+              </label>
+              <div className="grid grid-cols-2 gap-4">
+                <label className="flex flex-col gap-1.5 text-sm">
+                  <span className="text-xs text-muted">额度（tokens，0=不限）</span>
+                  <Input type="number" min="0" value={editQuota} onChange={(e) => setEditQuota(Number(e.target.value))} />
+                </label>
+                <label className="flex flex-col gap-1.5 text-sm">
+                  <span className="text-xs text-muted">限流（次/分钟）</span>
+                  <Input type="number" min="1" value={editRpm} onChange={(e) => setEditRpm(Number(e.target.value))} />
+                </label>
+              </div>
+              <label className="flex flex-col gap-1.5 text-sm">
+                <span className="text-xs text-muted">允许模型（逗号分隔，空=全部）</span>
+                <Input value={editModels} onChange={(e) => setEditModels(e.target.value)} className="font-mono text-xs" placeholder="gpt-5.6-sol, gpt-5.6-terra" />
+              </label>
+              {error ? <p className="text-sm text-danger">{error}</p> : null}
+              <Button type="submit" disabled={busy} className="self-start">{busy ? "保存中…" : "保存修改"}</Button>
+            </form>
+          </div>
+        ) : null}
 
         {newKey ? (
           <div className="rounded-lg border border-accent bg-bg p-5">
