@@ -43,10 +43,11 @@ export function ModelsPanel({ initialPrices }: { initialPrices: ModelPriceRow[] 
       }
     };
     setValue("model", row.model);
-    setValue("input", microsToCnyYuan(row.inputPricePer1kMicros).toFixed(4));
-    setValue("output", microsToCnyYuan(row.outputPricePer1kMicros).toFixed(4));
-    setValue("cacheRead", microsToCnyYuan(row.cacheReadPricePer1kMicros).toFixed(4));
-    setValue("cacheWrite", microsToCnyYuan(row.cacheWritePricePer1kMicros).toFixed(4));
+    // 数据库存元/1k，表单按元/1M 录入/回填（×1000）
+    setValue("input", (microsToCnyYuan(row.inputPricePer1kMicros) * 1000).toFixed(4));
+    setValue("output", (microsToCnyYuan(row.outputPricePer1kMicros) * 1000).toFixed(4));
+    setValue("cacheRead", (microsToCnyYuan(row.cacheReadPricePer1kMicros) * 1000).toFixed(4));
+    setValue("cacheWrite", (microsToCnyYuan(row.cacheWritePricePer1kMicros) * 1000).toFixed(4));
     setValue("maxInput", String(row.maxInputTokens));
     setValue("maxOutput", String(row.maxOutputTokens));
     setValue("featured", row.featured);
@@ -78,10 +79,11 @@ export function ModelsPanel({ initialPrices }: { initialPrices: ModelPriceRow[] 
     const form = new FormData(event.currentTarget);
     const body = {
       model: String(form.get("model") || "").trim(),
-      inputPricePer1kMicros: cnyYuanToMicros(Number(form.get("input"))),
-      outputPricePer1kMicros: cnyYuanToMicros(Number(form.get("output"))),
-      cacheReadPricePer1kMicros: cnyYuanToMicros(Number(form.get("cacheRead") || 0)),
-      cacheWritePricePer1kMicros: cnyYuanToMicros(Number(form.get("cacheWrite") || 0)),
+      // 表单按元/1M 录入，后端存元/1k（÷1000）
+      inputPricePer1kMicros: cnyYuanToMicros(Number(form.get("input")) / 1000),
+      outputPricePer1kMicros: cnyYuanToMicros(Number(form.get("output")) / 1000),
+      cacheReadPricePer1kMicros: cnyYuanToMicros((Number(form.get("cacheRead")) || 0) / 1000),
+      cacheWritePricePer1kMicros: cnyYuanToMicros((Number(form.get("cacheWrite")) || 0) / 1000),
       maxInputTokens: Number(form.get("maxInput")),
       maxOutputTokens: Number(form.get("maxOutput")),
       allowedReasoningEfforts: REASONING_EFFORTS.filter((effort) => form.get(`effort-${effort}`) === "on"),
@@ -129,12 +131,12 @@ export function ModelsPanel({ initialPrices }: { initialPrices: ModelPriceRow[] 
         </div>
         <Input name="model" required readOnly={Boolean(editing)} className="font-mono text-sm" placeholder="模型名，例如 mimo-v2.5-pro" />
         <div className="grid grid-cols-2 gap-3">
-          <Input name="input" required type="number" min="0" step="0.0001" className="" placeholder="输入价格（元/1k）" />
-          <Input name="output" required type="number" min="0" step="0.0001" className="" placeholder="输出价格（元/1k）" />
+          <Input name="input" required type="number" min="0" step="0.0001" className="" placeholder="输入价格（元/1M）" />
+          <Input name="output" required type="number" min="0" step="0.0001" className="" placeholder="输出价格（元/1M）" />
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Input name="cacheRead" type="number" min="0" step="0.0001" className="" placeholder="缓存读价格（元/1k）" />
-          <Input name="cacheWrite" type="number" min="0" step="0.0001" className="" placeholder="缓存写价格（元/1k）" />
+          <Input name="cacheRead" type="number" min="0" step="0.0001" className="" placeholder="缓存读价格（元/1M）" />
+          <Input name="cacheWrite" type="number" min="0" step="0.0001" className="" placeholder="缓存写价格（元/1M）" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <Input name="maxInput" required type="number" min="1" defaultValue="16384" className="" />
@@ -164,8 +166,8 @@ export function ModelsPanel({ initialPrices }: { initialPrices: ModelPriceRow[] 
             <tr className="border-b border-line bg-surface text-left font-mono text-xs text-muted">
               <th className="px-4 py-2.5 font-normal">模型</th>
               <th className="px-4 py-2.5 font-normal">状态</th>
-              <th className="px-4 py-2.5 text-right font-normal">输入 / 1K</th>
-              <th className="px-4 py-2.5 text-right font-normal">输出 / 1K</th>
+              <th className="px-4 py-2.5 text-right font-normal">输入 / 1M</th>
+              <th className="px-4 py-2.5 text-right font-normal">输出 / 1M</th>
               <th className="px-4 py-2.5 text-right font-normal">最大输出 tokens</th>
               <th className="px-4 py-2.5 font-normal">推理强度</th>
               <th className="px-4 py-2.5 font-normal">操作</th>
@@ -179,8 +181,8 @@ export function ModelsPanel({ initialPrices }: { initialPrices: ModelPriceRow[] 
                   {row.featured ? <span className="ml-2"><Badge variant="accent" size="sm">推荐</Badge></span> : null}
                 </td>
                 <td className="px-4 py-3"><Badge variant={row.enabled ? "success" : "outline"} size="sm">{row.enabled ? "已开放" : "已停用"}</Badge></td>
-                <td className="px-4 py-3 text-right font-mono text-xs">{cnyMicrosLabel(row.inputPricePer1kMicros)}</td>
-                <td className="px-4 py-3 text-right font-mono text-xs">{cnyMicrosLabel(row.outputPricePer1kMicros)}</td>
+                <td className="px-4 py-3 text-right font-mono text-xs">{cnyMicrosLabel(row.inputPricePer1kMicros * 1000)}</td>
+                <td className="px-4 py-3 text-right font-mono text-xs">{cnyMicrosLabel(row.outputPricePer1kMicros * 1000)}</td>
                 <td className="px-4 py-3 text-right font-mono text-xs">{row.maxOutputTokens.toLocaleString()}</td>
                 <td className="px-4 py-3 font-mono text-xs text-muted">{row.allowedReasoningEfforts.join(" · ")}</td>
                 <td className="px-4 py-3">

@@ -9,7 +9,7 @@ import { cnyMicrosLabel } from "@/providers/billing/currency";
 import { ModelsPanel } from "./models-panel";
 
 const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_URL ?? "https://auth.zmzai.cloud";
-const money = (value: number) => cnyMicrosLabel(value);
+const money = (value: number) => cnyMicrosLabel(value * 1000); // 价目表按元/1M 展示
 export const dynamic = "force-dynamic";
 export default async function ModelsPage() {
   const user = await getCurrentUser();
@@ -82,8 +82,8 @@ export default async function ModelsPage() {
               <th className="px-4 py-2.5 font-normal">渠道</th>
               <th className="px-4 py-2.5 font-normal">状态</th>
               <th className="px-4 py-2.5 font-normal">推理强度</th>
-              <th className="px-4 py-2.5 text-right font-normal">输入 / 1K</th>
-              <th className="px-4 py-2.5 text-right font-normal">输出 / 1K</th>
+              <th className="px-4 py-2.5 text-right font-normal">输入 / 1M</th>
+              <th className="px-4 py-2.5 text-right font-normal">输出 / 1M</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
