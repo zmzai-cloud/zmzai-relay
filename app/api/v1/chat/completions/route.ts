@@ -121,10 +121,9 @@ export async function POST(req: NextRequest) {
   }
   if (!price.enabled) return error("MODEL_NOT_PRICED", 400, "该模型尚未开放或未配置价格");
   if (parsed.data.reasoning_effort && !price.allowedReasoningEfforts.includes(parsed.data.reasoning_effort)) return error("REASONING_EFFORT_NOT_ALLOWED", 400, "该模型不支持此推理强度");
+  // 客户端可能发送超过模型上限的 max_tokens（如 Codex/zcode 默认值），自动截断到模型上限而非报错
   if ((parsed.data.max_tokens ?? 4096) > price.maxOutputTokens) {
-    const message = `max_tokens 超过该模型允许的上限（${price.maxOutputTokens}）`;
-    await logRejectedRequest(caller, parsed.data.model, message, parsed.data.requestId);
-    return error("MAX_TOKENS_EXCEEDED", 400, message);
+    parsed.data.max_tokens = price.maxOutputTokens;
   }
   if (Buffer.byteLength(JSON.stringify(parsed.data.messages), "utf8") > 128 * 1024) return error("PROMPT_TOO_LARGE", 400, "消息内容超过 128 KiB 限制");
 
