@@ -21,7 +21,10 @@ export const dynamic = "force-dynamic";
 
 const chatMessageSchema = z.object({
   role: z.string(),
-  content: z.string().nullable(),
+  // OpenAI wire format 允许 content 为字符串或多模态块数组（如 pi-ai/agent 框架的 blocks 结构）
+  content: z.string().nullable().or(
+    z.array(z.object({ type: z.string(), text: z.string().nullable() }).passthrough()).min(1),
+  ),
 }).passthrough();
 
 const chatSchema = z.object({
@@ -58,6 +61,16 @@ function effectiveCachePrices(price: { inputPricePer1kMicros: number; cacheReadP
   return {
     cacheRead: price.cacheReadPricePer1kMicros || price.inputPricePer1kMicros,
     cacheWrite: price.cacheWritePricePer1kMicros || price.inputPricePer1kMicros,
+  };
+}
+
+/** 实际收费价 = 模型标准价 × 渠道执行倍率（渠道按官方标准价折扣销售时配置，round 到整数微元/1k）。 */
+function effectivePrice(price: { inputPricePer1kMicros: number; outputPricePer1kMicros: number; cacheReadPricePer1kMicros: number; cacheWritePricePer1kMicros: number }, multiplier: number): { inputPricePer1kMicros: number; outputPricePer1kMicros: number; cacheReadPricePer1kMicros: number; cacheWritePricePer1kMicros: number } {
+  return {
+    inputPricePer1kMicros: Math.round(price.inputPricePer1kMicros * multiplier),
+    outputPricePer1kMicros: Math.round(price.outputPricePer1kMicros * multiplier),
+    cacheReadPricePer1kMicros: Math.round(price.cacheReadPricePer1kMicros * multiplier),
+    cacheWritePricePer1kMicros: Math.round(price.cacheWritePricePer1kMicros * multiplier),
   };
 }
 
@@ -132,15 +145,8 @@ export async function POST(req: NextRequest) {
   if (existing) return error(existing.status === "processing" ? "REQUEST_IN_PROGRESS" : "REQUEST_ALREADY_PROCESSED", 409, "此 requestId 已处理，不能重复调用");
 
   const usage = await UsageModel.create({ requestId, userId: caller.userId, apiKeyId: caller.kind === "apikey" ? caller.id : null, sandboxKeyId: caller.kind === "sandbox_key" ? caller.id : null, callerKind: caller.kind, callerId: caller.id, taskRunId: caller.taskRunId, channelId: null, model: parsed.data.model, upstreamModel: "pending", status: "processing" });
-  const reserved = maximumChargeMicros({ ...price, cacheWritePricePer1kMicros: price.cacheWritePricePer1kMicros || undefined });
-  try { await reserveBalance({ usageId: usage._id, userId: caller.userId, apiKeyId: caller.kind === "apikey" ? caller.id : null, amountMicros: reserved }); }
-  catch (e) {
-    await UsageModel.deleteOne({ _id: usage._id });
-    if (e instanceof BillingError) return error(e.code, 402, e.message);
-    throw e;
-  }
 
-  // 确定候选渠道：指定 channel 则直连，否则按 priority 自动路由
+  // 确定候选渠道：指定 channel 则直连，否则按 priority 自动路由（提前到预留前，预留需按渠道执行倍率）
   const specifiedChannelName = parsed.data.channel;
   let candidates;
   if (specifiedChannelName) {
@@ -150,14 +156,25 @@ export async function POST(req: NextRequest) {
     candidates = await ChannelModel.find({ enabled: true, "models.public": parsed.data.model }).select("+apiKey").sort({ priority: 1 }).lean();
   }
   if (!candidates.length) {
-    await releaseReservation(usage._id);
     await UsageModel.updateOne({ _id: usage._id }, { $set: { status: "failed", lastError: specifiedChannelName ? `channel "${specifiedChannelName}" not found or missing model` : "no eligible channel" } });
     return error(specifiedChannelName ? "CHANNEL_NOT_FOUND" : "NO_CHANNEL", specifiedChannelName ? 404 : 503, specifiedChannelName ? `渠道 "${specifiedChannelName}" 不可用或未配置该模型` : "没有可用上游渠道");
+  }
+
+  // 预留按候选渠道中最大的执行倍率（实际扣费 = 标准价 × 渠道执行倍率，覆盖最贵的候选渠道）
+  const reservePrice = effectivePrice(price, Math.max(...candidates.map((channel) => channel.executeMultiplier ?? 1)));
+  const reserved = maximumChargeMicros({ maxInputTokens: price.maxInputTokens, maxOutputTokens: price.maxOutputTokens, ...reservePrice, cacheWritePricePer1kMicros: reservePrice.cacheWritePricePer1kMicros || undefined });
+  try { await reserveBalance({ usageId: usage._id, userId: caller.userId, apiKeyId: caller.kind === "apikey" ? caller.id : null, amountMicros: reserved }); }
+  catch (e) {
+    await UsageModel.deleteOne({ _id: usage._id });
+    if (e instanceof BillingError) return error(e.code, 402, e.message);
+    throw e;
   }
 
   for (const channel of candidates) {
     const upstreamModel = channel.models.find((item) => item.public === parsed.data.model)?.upstream ?? parsed.data.model;
     const started = Date.now();
+    // 实际收费价 = 模型标准价 × 渠道执行倍率（乘渠道折扣后计费并写入快照）
+    const effective = effectivePrice(price, channel.executeMultiplier ?? 1);
     try {
       // 建连/首字节超时（channel.timeoutMs）：response header 到达即摘除，
       // 不覆盖流式读取——AbortSignal.timeout 曾把活跃长输出（PPT 几百行
@@ -169,19 +186,19 @@ export async function POST(req: NextRequest) {
         await ChannelAttemptModel.create({ usageId: usage._id, channelId: channel._id, upstreamModel, status: "failed", latencyMs: Date.now() - started, error: `HTTP ${upstream.status}: ${details}`, costStatus: "not_charged" });
         continue;
       }
-      if (parsed.data.stream && upstream.body) return streamResponse(upstream.body, usage._id, channel, upstreamModel, parsed.data.model, price, started);
+      if (parsed.data.stream && upstream.body) return streamResponse(upstream.body, usage._id, channel, upstreamModel, parsed.data.model, effective, started);
       const json = await upstream.json().catch(() => null);
       const tokens = json?.usage as Record<string, unknown> | undefined;
       if (!tokens) { await releaseReservation(usage._id); await UsageModel.updateOne({ _id: usage._id }, { $set: { status: "unsettled", lastError: "upstream omitted usage" } }); return error("USAGE_UNAVAILABLE", 502, "上游未返回用量，已取消扣费"); }
       const prompt = (tokens.prompt_tokens as number) ?? 0; const completion = (tokens.completion_tokens as number) ?? 0;
       const { cacheRead, cacheWrite } = extractCacheTokens(tokens);
       const regularInput = Math.max(0, prompt - cacheRead - cacheWrite);
-      const cachePrices = effectiveCachePrices(price);
-      const charged = chargeMicros(regularInput, price.inputPricePer1kMicros) + chargeMicros(cacheRead, cachePrices.cacheRead) + chargeMicros(cacheWrite, cachePrices.cacheWrite) + chargeMicros(completion, price.outputPricePer1kMicros);
+      const cachePrices = effectiveCachePrices(effective);
+      const charged = chargeMicros(regularInput, effective.inputPricePer1kMicros) + chargeMicros(cacheRead, cachePrices.cacheRead) + chargeMicros(cacheWrite, cachePrices.cacheWrite) + chargeMicros(completion, effective.outputPricePer1kMicros);
       const channelCosts = resolveChannelCosts(channel, parsed.data.model);
       const cost = channelCosts ? chargeMicros(regularInput, channelCosts.inputCostPer1kTokensMicros) + chargeMicros(cacheRead, channelCosts.cacheReadCostPer1kTokensMicros) + chargeMicros(cacheWrite, channelCosts.cacheWriteCostPer1kTokensMicros) + chargeMicros(completion, channelCosts.outputCostPer1kTokensMicros) : 0;
       await ChannelAttemptModel.create({ usageId: usage._id, channelId: channel._id, upstreamModel, status: "completed", latencyMs: Date.now() - started, error: null, costStatus: channelCosts ? "known" : "unknown" });
-      await settleReservation(usage._id, { chargedMicros: charged, costMicros: cost, promptTokens: prompt, completionTokens: completion, cacheReadTokens: cacheRead, cacheWriteTokens: cacheWrite, channelId: channel._id, upstreamModel, latencyMs: Date.now() - started, inputPricePer1kMicros: price.inputPricePer1kMicros, outputPricePer1kMicros: price.outputPricePer1kMicros, cacheReadPricePer1kMicros: cachePrices.cacheRead, cacheWritePricePer1kMicros: cachePrices.cacheWrite, inputCostPer1kTokensMicros: channelCosts?.inputCostPer1kTokensMicros ?? 0, outputCostPer1kTokensMicros: channelCosts?.outputCostPer1kTokensMicros ?? 0, cacheReadCostPer1kTokensMicros: channelCosts?.cacheReadCostPer1kTokensMicros ?? 0, cacheWriteCostPer1kTokensMicros: channelCosts?.cacheWriteCostPer1kTokensMicros ?? 0 });
+      await settleReservation(usage._id, { chargedMicros: charged, costMicros: cost, promptTokens: prompt, completionTokens: completion, cacheReadTokens: cacheRead, cacheWriteTokens: cacheWrite, channelId: channel._id, upstreamModel, latencyMs: Date.now() - started, inputPricePer1kMicros: effective.inputPricePer1kMicros, outputPricePer1kMicros: effective.outputPricePer1kMicros, cacheReadPricePer1kMicros: cachePrices.cacheRead, cacheWritePricePer1kMicros: cachePrices.cacheWrite, inputCostPer1kTokensMicros: channelCosts?.inputCostPer1kTokensMicros ?? 0, outputCostPer1kTokensMicros: channelCosts?.outputCostPer1kTokensMicros ?? 0, cacheReadCostPer1kTokensMicros: channelCosts?.cacheReadCostPer1kTokensMicros ?? 0, cacheWriteCostPer1kTokensMicros: channelCosts?.cacheWriteCostPer1kTokensMicros ?? 0 });
       if (specifiedChannelName) return NextResponse.json(json);
       return NextResponse.json(json);
     } catch (e) { await ChannelAttemptModel.create({ usageId: usage._id, channelId: channel._id, upstreamModel, status: "failed", latencyMs: Date.now() - started, error: e instanceof Error ? e.message.slice(0, 500) : "network failure", costStatus: "unknown" }); }

@@ -164,7 +164,7 @@ export function ModelsPanel({ initialPrices }: { initialPrices: ModelPriceRow[] 
           <p className="font-mono text-xs text-muted">官方价：输入 ¥{official.inputCnyPer1M}/1M · 输出 ¥{official.outputCnyPer1M}/1M{official.note ? `（${official.note}）` : null}，上限 {official.maxInputTokens.toLocaleString()} 入 / {official.maxOutputTokens.toLocaleString()} 出</p>
         ) : null}
         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3">
-          <Input name="multiplier" required type="number" min="0.01" step="0.01" defaultValue="1" className="" placeholder="倍率（官方价 × 倍率 = 售价）" />
+          <Input name="multiplier" required type="number" min="0.01" step="0.01" defaultValue="1" className="" placeholder="标准价倍率（官方价 × 倍率 = 标准价，默认 1 = 官方原价）" />
           <Button type="button" variant="secondary" onClick={applyMultiplier} className="shrink-0">按倍率填充</Button>
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -205,7 +205,7 @@ export function ModelsPanel({ initialPrices }: { initialPrices: ModelPriceRow[] 
               <th className="px-4 py-2.5 font-normal">状态</th>
               <th className="px-4 py-2.5 text-right font-normal">输入 / 1M</th>
               <th className="px-4 py-2.5 text-right font-normal">输出 / 1M</th>
-              <th className="px-4 py-2.5 text-right font-normal">倍率</th>
+              <th className="px-4 py-2.5 text-right font-normal">标准价倍率</th>
               <th className="px-4 py-2.5 text-right font-normal">最大输出 tokens</th>
               <th className="px-4 py-2.5 font-normal">推理强度</th>
               <th className="px-4 py-2.5 font-normal">操作</th>
