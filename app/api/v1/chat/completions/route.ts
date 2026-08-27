@@ -138,7 +138,9 @@ export async function POST(req: NextRequest) {
   if ((parsed.data.max_tokens ?? 4096) > price.maxOutputTokens) {
     parsed.data.max_tokens = price.maxOutputTokens;
   }
-  if (Buffer.byteLength(JSON.stringify(parsed.data.messages), "utf8") > 128 * 1024) return error("PROMPT_TOO_LARGE", 400, "消息内容超过 128 KiB 限制");
+  // 编程 agent（zcode/Codex）上下文可达 MB 级（多轮对话 + 代码文件），128 KiB 会挡掉正常使用；
+  // 提到 8 MiB 与模型 1M 输入上下文匹配，同时保留防滥用底线。
+  if (Buffer.byteLength(JSON.stringify(parsed.data.messages), "utf8") > 8 * 1024 * 1024) return error("PROMPT_TOO_LARGE", 400, "消息内容超过 8 MiB 限制");
 
   const requestId = parsed.data.requestId ?? randomUUID();
   const existing = await UsageModel.findOne({ callerKind: caller.kind, callerId: caller.id, requestId }).lean();
