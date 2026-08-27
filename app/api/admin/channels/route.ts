@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { AdminRequiredError, requireAdmin } from "@/providers/auth/session";
-import { channelCreateSchema } from "@/providers/channels/schema";
+import { channelCreateSchema, assertModelsRegistered } from "@/providers/channels/schema";
 import { connectMongo } from "@/providers/database/mongodb/connection";
 import { ChannelModel } from "@/providers/database/mongodb/models/channel";
 import { validateUpstreamUrl } from "@/providers/network/safe-upstream-fetch";
@@ -36,6 +36,11 @@ export async function POST(req: NextRequest) {
   const parsed = channelCreateSchema.safeParse(body);
   if (!parsed.success) {
     return err("INVALID_BODY", 400, "渠道配置格式不正确");
+  }
+
+  const missing = await assertModelsRegistered(parsed.data.models.map((m) => m.public));
+  if (missing.length) {
+    return err("INVALID_BODY", 400, `以下模型尚未注册，请先在「模型与价格」中添加：${missing.join(", ")}`);
   }
 
   try {

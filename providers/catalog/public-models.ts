@@ -1,5 +1,5 @@
 import { ChannelModel } from "@/providers/database/mongodb/models/channel";
-import { ModelPriceModel, supportedModels } from "@/providers/database/mongodb/models/model-price";
+import { ModelPriceModel } from "@/providers/database/mongodb/models/model-price";
 import { cnyMicrosLabel } from "@/providers/billing/currency";
 
 export interface PublicModel {
@@ -36,7 +36,7 @@ export interface PublicChannel {
 /** @deprecated Use `getPublicChannels()` instead — channel-first catalog. */
 export async function getPublicModels(): Promise<PublicModel[]> {
   const [prices, channels] = await Promise.all([
-    ModelPriceModel.find({ enabled: true, model: { $in: supportedModels } }).sort({ model: 1 }).lean(),
+    ModelPriceModel.find({ enabled: true }).sort({ model: 1 }).lean(),
     ChannelModel.find({ enabled: true }).select("models").lean(),
   ]);
   const routable = new Set(channels.flatMap((channel) => channel.models.map((mapping) => mapping.public)));
@@ -56,7 +56,7 @@ export async function getPublicModels(): Promise<PublicModel[]> {
 /** 渠道优先目录：以渠道为主键，每个渠道下列出可用模型（含价格）。 */
 export async function getPublicChannels(): Promise<PublicChannel[]> {
   const [prices, channels] = await Promise.all([
-    ModelPriceModel.find({ enabled: true, model: { $in: supportedModels } }).lean(),
+    ModelPriceModel.find({ enabled: true }).lean(),
     ChannelModel.find({ enabled: true }).sort({ priority: 1 }).lean(),
   ]);
   const priceMap = new Map(prices.map((p) => [p.model, p]));

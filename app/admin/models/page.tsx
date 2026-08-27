@@ -4,8 +4,9 @@ import { RelayShell } from "@/components/relay-shell";
 import { getCurrentUser } from "@/providers/auth/session";
 import { connectMongo } from "@/providers/database/mongodb/connection";
 import { ChannelModel } from "@/providers/database/mongodb/models/channel";
-import { ModelPriceModel, supportedModels } from "@/providers/database/mongodb/models/model-price";
+import { ModelPriceModel } from "@/providers/database/mongodb/models/model-price";
 import { cnyMicrosLabel } from "@/providers/billing/currency";
+import { ModelsPanel } from "./models-panel";
 
 const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_URL ?? "https://auth.zmzai.cloud";
 const money = (value: number) => cnyMicrosLabel(value);
@@ -15,7 +16,7 @@ export default async function ModelsPage() {
   if (!user) redirect(`${AUTH_URL}/login?next=${encodeURIComponent("https://m.zmzai.cloud/admin/models")}`);
   if (user.role !== "admin") redirect("/dashboard");
   await connectMongo();
-  const [models, channels] = await Promise.all([ModelPriceModel.find({ model: { $in: supportedModels } }).sort({ model: 1 }).lean(), ChannelModel.find().sort({ priority: 1 }).lean()]);
+  const [models, channels] = await Promise.all([ModelPriceModel.find().sort({ model: 1 }).lean(), ChannelModel.find().sort({ priority: 1 }).lean()]);
   const priceMap = new Map(models.map((m) => [m.model, m]));
   const rows = channels.flatMap((channel) =>
     channel.models
@@ -52,6 +53,24 @@ export default async function ModelsPage() {
             })}
           </tbody>
         </table>
+      </div>
+
+      <h2 className="mt-10 text-lg font-semibold">模型管理</h2>
+      <p className="mt-2 text-sm text-ink-2">注册新模型、调整价格与 max_tokens 上限、启停模型。新增后即可在「渠道与路由」中为其配置上游映射。</p>
+      <div className="mt-3">
+        <ModelsPanel initialPrices={models.map((m) => ({
+          model: m.model,
+          inputPricePer1kMicros: m.inputPricePer1kMicros,
+          outputPricePer1kMicros: m.outputPricePer1kMicros,
+          cacheReadPricePer1kMicros: m.cacheReadPricePer1kMicros,
+          cacheWritePricePer1kMicros: m.cacheWritePricePer1kMicros,
+          maxInputTokens: m.maxInputTokens,
+          maxOutputTokens: m.maxOutputTokens,
+          allowedReasoningEfforts: m.allowedReasoningEfforts,
+          featured: m.featured,
+          featuredDescription: m.featuredDescription,
+          enabled: m.enabled,
+        }))} />
       </div>
 
       <h2 className="mt-10 text-lg font-semibold">模型价目</h2>

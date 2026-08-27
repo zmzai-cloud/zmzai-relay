@@ -1,10 +1,12 @@
 import { z } from "zod";
-import { supportedModels } from "@/providers/database/mongodb/models/model-price";
+import { connectMongo } from "@/providers/database/mongodb/connection";
+import { ModelPriceModel } from "@/providers/database/mongodb/models/model-price";
 
 const channelConfigFields = {
   name: z.string().min(1).max(80),
   baseUrl: z.string().url().max(500),
-  models: z.array(z.object({ public: z.enum(supportedModels), upstream: z.string().min(1) })).min(1),
+  // public 必须是已注册模型（ModelPrice 集合中存在）；存在性由创建/更新路由异步校验
+  models: z.array(z.object({ public: z.string().min(1).max(120).regex(/^[a-z0-9][a-z0-9._-]*$/i), upstream: z.string().min(1).max(200) })).min(1),
   priority: z.coerce.number().int().min(0),
   inputCostPer1kTokensMicros: z.number().int().min(0).nullable(),
   outputCostPer1kTokensMicros: z.number().int().min(0).nullable(),
@@ -29,3 +31,11 @@ function validateCosts(value: { inputCostPer1kTokensMicros: number | null; outpu
 
 export const channelConfigSchema = z.object(channelConfigFields).strict().superRefine(validateCosts);
 export const channelCreateSchema = z.object({ ...channelConfigFields, apiKey: z.string().min(1) }).strict().superRefine(validateCosts);
+
+/** 校验 models[].public 均已注册（ModelPrice 集合存在记录），返回缺失的模型名。 */
+export async function assertModelsRegistered(publics: string[]): Promise<string[]> {
+  await connectMongo();
+  const found = await ModelPriceModel.find({ model: { $in: [...new Set(publics)] } }).select("model").lean();
+  const foundSet = new Set(found.map((m) => m.model));
+  return [...new Set(publics)].filter((name) => !foundSet.has(name));
+}

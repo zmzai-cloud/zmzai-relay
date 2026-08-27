@@ -3,7 +3,7 @@ import { RelayShell } from "@/components/relay-shell";
 import { getCurrentUser } from "@/providers/auth/session";
 import { connectMongo } from "@/providers/database/mongodb/connection";
 import { ApiKeyModel } from "@/providers/database/mongodb/models/apikey";
-import { ModelPriceModel, supportedModels } from "@/providers/database/mongodb/models/model-price";
+import { ModelPriceModel } from "@/providers/database/mongodb/models/model-price";
 import { TokenPanel } from "../token-panel";
 
 const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_URL ?? "https://auth.zmzai.cloud";
@@ -13,7 +13,7 @@ export default async function KeysPage() {
   const user = await getCurrentUser();
   if (!user) redirect(`${AUTH_URL}/login?next=${encodeURIComponent("https://m.zmzai.cloud/dashboard/keys")}`);
   await connectMongo();
-  const [keys, models] = await Promise.all([ApiKeyModel.find({ userId: user.id }).sort({ createdAt: -1 }).lean(), ModelPriceModel.find({ enabled: true, model: { $in: supportedModels } }).sort({ model: 1 }).lean()]);
+  const [keys, models] = await Promise.all([ApiKeyModel.find({ userId: user.id }).sort({ createdAt: -1 }).lean(), ModelPriceModel.find({ enabled: true }).sort({ model: 1 }).lean()]);
   return (
     <RelayShell role="user" userName={user.name} isAdminUser={user.role === "admin"}>
       <h1 className="text-2xl font-semibold tracking-tight">API Keys</h1>
