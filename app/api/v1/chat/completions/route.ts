@@ -11,7 +11,7 @@ import { UserModel } from "@zmzai/db";
 import { chargeMicros, maximumChargeMicros, reserveBalance, releaseReservation, settleReservation, BillingError } from "@/providers/billing/service";
 import { connectMongo } from "@/providers/database/mongodb/connection";
 import { ChannelAttemptModel } from "@/providers/database/mongodb/models/channel-attempt";
-import { ChannelModel, resolveChannelCosts, type ModelCostOverride } from "@/providers/database/mongodb/models/channel";
+import { ChannelModel, resolveChannelCosts, CHANNEL_COOLDOWN_THRESHOLD, CHANNEL_COOLDOWN_MS, type ModelCostOverride } from "@/providers/database/mongodb/models/channel";
 import { ModelPriceModel, reasoningEfforts } from "@/providers/database/mongodb/models/model-price";
 import { RateLimitBucketModel } from "@/providers/database/mongodb/models/rate-limit";
 import { UsageModel } from "@/providers/database/mongodb/models/usage";
@@ -140,7 +140,8 @@ export async function POST(req: NextRequest) {
   }
   // 编程 agent（zcode/Codex）上下文可达 MB 级（多轮对话 + 代码文件），128 KiB 会挡掉正常使用；
   // 提到 8 MiB 与模型 1M 输入上下文匹配，同时保留防滥用底线。
-  if (Buffer.byteLength(JSON.stringify(parsed.data.messages), "utf8") > 8 * 1024 * 1024) return error("PROMPT_TOO_LARGE", 400, "消息内容超过 8 MiB 限制");
+  const messagesJson = JSON.stringify(parsed.data.messages);
+  if (Buffer.byteLength(messagesJson, "utf8") > 8 * 1024 * 1024) return error("PROMPT_TOO_LARGE", 400, "消息内容超过 8 MiB 限制");
 
   const requestId = parsed.data.requestId ?? randomUUID();
   const existing = await UsageModel.findOne({ callerKind: caller.kind, callerId: caller.id, requestId }).lean();
@@ -155,16 +156,25 @@ export async function POST(req: NextRequest) {
     const ch = await ChannelModel.findOne({ name: specifiedChannelName, enabled: true, "models.public": parsed.data.model }).select("+apiKey").lean();
     candidates = ch ? [ch] : [];
   } else {
-    candidates = await ChannelModel.find({ enabled: true, "models.public": parsed.data.model }).select("+apiKey").sort({ priority: 1 }).lean();
+    const now = new Date();
+    candidates = await ChannelModel.find({ enabled: true, "models.public": parsed.data.model, $or: [{ cooldownUntil: null }, { cooldownUntil: { $lte: now } }] }).select("+apiKey").sort({ priority: 1 }).lean();
+    if (!candidates.length) {
+      // 全部候选都在冷却：豁免冷却重试一次（冷却渠道可能已恢复，有渠道总比 503 强）
+      candidates = await ChannelModel.find({ enabled: true, "models.public": parsed.data.model }).select("+apiKey").sort({ priority: 1 }).lean();
+    }
   }
   if (!candidates.length) {
     await UsageModel.updateOne({ _id: usage._id }, { $set: { status: "failed", lastError: specifiedChannelName ? `channel "${specifiedChannelName}" not found or missing model` : "no eligible channel" } });
     return error(specifiedChannelName ? "CHANNEL_NOT_FOUND" : "NO_CHANNEL", specifiedChannelName ? 404 : 503, specifiedChannelName ? `渠道 "${specifiedChannelName}" 不可用或未配置该模型` : "没有可用上游渠道");
   }
 
-  // 预留按候选渠道中最大的执行倍率（实际扣费 = 标准价 × 渠道执行倍率，覆盖最贵的候选渠道）
+  // 预留贴近实际可能消耗：输入按请求体估算 tokens（字节/3，cap 模型上限），
+  // 输出按请求 max_tokens（已 clamp，未传按 4096）。不再按模型 maxInput/maxOutput 全额预留——
+  // 那会要求余额覆盖理论最大费用（如 terra ≈ ¥1.4 万），正常用户全部 402。
   const reservePrice = effectivePrice(price, Math.max(...candidates.map((channel) => channel.executeMultiplier ?? 1)));
-  const reserved = maximumChargeMicros({ maxInputTokens: price.maxInputTokens, maxOutputTokens: price.maxOutputTokens, ...reservePrice, cacheWritePricePer1kMicros: reservePrice.cacheWritePricePer1kMicros || undefined });
+  const estimatedInputTokens = Math.min(price.maxInputTokens, Math.max(1, Math.ceil(Buffer.byteLength(messagesJson, "utf8") / 3)));
+  const reserveOutputTokens = Math.min(parsed.data.max_tokens ?? 4096, price.maxOutputTokens);
+  const reserved = maximumChargeMicros({ maxInputTokens: estimatedInputTokens, maxOutputTokens: reserveOutputTokens, ...reservePrice, cacheWritePricePer1kMicros: reservePrice.cacheWritePricePer1kMicros || undefined });
   try { await reserveBalance({ usageId: usage._id, userId: caller.userId, apiKeyId: caller.kind === "apikey" ? caller.id : null, amountMicros: reserved }); }
   catch (e) {
     await UsageModel.deleteOne({ _id: usage._id });
@@ -186,6 +196,7 @@ export async function POST(req: NextRequest) {
       if (!upstream.ok) {
         const details = (await upstream.text().catch(() => "")).slice(0, 500);
         await ChannelAttemptModel.create({ usageId: usage._id, channelId: channel._id, upstreamModel, status: "failed", latencyMs: Date.now() - started, error: `HTTP ${upstream.status}: ${details}`, costStatus: "not_charged" });
+        await markChannelFailure(channel._id);
         continue;
       }
       if (parsed.data.stream && upstream.body) return streamResponse(upstream.body, usage._id, channel, upstreamModel, parsed.data.model, effective, started);
@@ -201,9 +212,10 @@ export async function POST(req: NextRequest) {
       const cost = channelCosts ? chargeMicros(regularInput, channelCosts.inputCostPer1kTokensMicros) + chargeMicros(cacheRead, channelCosts.cacheReadCostPer1kTokensMicros) + chargeMicros(cacheWrite, channelCosts.cacheWriteCostPer1kTokensMicros) + chargeMicros(completion, channelCosts.outputCostPer1kTokensMicros) : 0;
       await ChannelAttemptModel.create({ usageId: usage._id, channelId: channel._id, upstreamModel, status: "completed", latencyMs: Date.now() - started, error: null, costStatus: channelCosts ? "known" : "unknown" });
       await settleReservation(usage._id, { chargedMicros: charged, costMicros: cost, promptTokens: prompt, completionTokens: completion, cacheReadTokens: cacheRead, cacheWriteTokens: cacheWrite, channelId: channel._id, upstreamModel, latencyMs: Date.now() - started, inputPricePer1kMicros: effective.inputPricePer1kMicros, outputPricePer1kMicros: effective.outputPricePer1kMicros, cacheReadPricePer1kMicros: cachePrices.cacheRead, cacheWritePricePer1kMicros: cachePrices.cacheWrite, inputCostPer1kTokensMicros: channelCosts?.inputCostPer1kTokensMicros ?? 0, outputCostPer1kTokensMicros: channelCosts?.outputCostPer1kTokensMicros ?? 0, cacheReadCostPer1kTokensMicros: channelCosts?.cacheReadCostPer1kTokensMicros ?? 0, cacheWriteCostPer1kTokensMicros: channelCosts?.cacheWriteCostPer1kTokensMicros ?? 0 });
+      await markChannelSuccess(channel._id);
       if (specifiedChannelName) return NextResponse.json(json);
       return NextResponse.json(json);
-    } catch (e) { await ChannelAttemptModel.create({ usageId: usage._id, channelId: channel._id, upstreamModel, status: "failed", latencyMs: Date.now() - started, error: e instanceof Error ? e.message.slice(0, 500) : "network failure", costStatus: "unknown" }); }
+    } catch (e) { await ChannelAttemptModel.create({ usageId: usage._id, channelId: channel._id, upstreamModel, status: "failed", latencyMs: Date.now() - started, error: e instanceof Error ? e.message.slice(0, 500) : "network failure", costStatus: "unknown" }); await markChannelFailure(channel._id); }
   }
   await releaseReservation(usage._id); await UsageModel.updateOne({ _id: usage._id }, { $set: { status: "failed", lastError: "all eligible channels failed" } });
   return error("UPSTREAM_ERROR", 502, "所有上游渠道均不可用");
@@ -212,6 +224,21 @@ export async function POST(req: NextRequest) {
 /** 流式 idle 超时：只要在此时长内收到过新数据就重置计时；连续无新数据
  *  才判定为死连接。活跃的长输出（如几百行脚本）不会被误杀。 */
 const UPSTREAM_STREAM_IDLE_TIMEOUT_MS = 120_000;
+
+/** 渠道健康计数：成功即清零并解除冷却；连续失败达阈值进入冷却 5 分钟。 */
+async function markChannelSuccess(channelId: import("mongoose").Types.ObjectId): Promise<void> {
+  await ChannelModel.updateOne({ _id: channelId, consecutiveFailures: { $ne: 0 } }, { $set: { consecutiveFailures: 0, cooldownUntil: null } });
+}
+async function markChannelFailure(channelId: import("mongoose").Types.ObjectId): Promise<void> {
+  const updated = await ChannelModel.findOneAndUpdate(
+    { _id: channelId, $or: [{ cooldownUntil: null }, { cooldownUntil: { $lte: new Date() } }] },
+    { $inc: { consecutiveFailures: 1 } },
+    { new: true },
+  ).select("consecutiveFailures").lean();
+  if (updated && updated.consecutiveFailures >= CHANNEL_COOLDOWN_THRESHOLD) {
+    await ChannelModel.updateOne({ _id: channelId }, { $set: { cooldownUntil: new Date(Date.now() + CHANNEL_COOLDOWN_MS), consecutiveFailures: 0 } });
+  }
+}
 
 function streamResponse(body: ReadableStream<Uint8Array>, usageId: import("mongoose").Types.ObjectId, channel: { _id: import("mongoose").Types.ObjectId; inputCostPer1kTokensMicros: number | null; outputCostPer1kTokensMicros: number | null; cacheReadCostPer1kTokensMicros: number | null; cacheWriteCostPer1kTokensMicros: number | null; modelCosts: Record<string, ModelCostOverride> }, upstreamModel: string, publicModel: string, price: { inputPricePer1kMicros: number; outputPricePer1kMicros: number; cacheReadPricePer1kMicros: number; cacheWritePricePer1kMicros: number }, started: number) {
   const stream = new ReadableStream<Uint8Array>({ async start(controller) {
@@ -247,9 +274,10 @@ function streamResponse(body: ReadableStream<Uint8Array>, usageId: import("mongo
         const cost = channelCosts ? chargeMicros(regularInput, inputCost) + chargeMicros(cacheRead, cacheReadCost) + chargeMicros(cacheWrite, cacheWriteCost) + chargeMicros(completion, outputCost) : 0;
         await ChannelAttemptModel.create({ usageId, channelId: channel._id, upstreamModel, status: "completed", latencyMs: Date.now() - started, error: null, costStatus: channelCosts ? "known" : "unknown" });
         await settleReservation(usageId, { chargedMicros: charged, costMicros: cost, promptTokens: prompt, completionTokens: completion, cacheReadTokens: cacheRead, cacheWriteTokens: cacheWrite, channelId: channel._id, upstreamModel, latencyMs: Date.now() - started, inputPricePer1kMicros: price.inputPricePer1kMicros, outputPricePer1kMicros: price.outputPricePer1kMicros, cacheReadPricePer1kMicros: cachePrices.cacheRead, cacheWritePricePer1kMicros: cachePrices.cacheWrite, inputCostPer1kTokensMicros: inputCost, outputCostPer1kTokensMicros: outputCost, cacheReadCostPer1kTokensMicros: cacheReadCost, cacheWriteCostPer1kTokensMicros: cacheWriteCost });
+        await markChannelSuccess(channel._id);
       }
       controller.close();
-    } catch (e) { await releaseReservation(usageId); const isIdle = e instanceof Error && e.message.includes("IDLE_TIMEOUT"); const reason = isIdle ? "上游流 120s 无数据（idle 超时），疑似死连接" : (e instanceof Error ? e.message : "上游流读取失败"); await UsageModel.updateOne({ _id: usageId }, { $set: { status: "failed", lastError: reason } }); controller.error(new Error(reason)); }
+    } catch (e) { await releaseReservation(usageId); const isIdle = e instanceof Error && e.message.includes("IDLE_TIMEOUT"); const reason = isIdle ? "上游流 120s 无数据（idle 超时），疑似死连接" : (e instanceof Error ? e.message : "上游流读取失败"); await UsageModel.updateOne({ _id: usageId }, { $set: { status: "failed", lastError: reason } }); await markChannelFailure(channel._id); controller.error(new Error(reason)); }
   }});
   return new NextResponse(stream, { headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" } });
 }

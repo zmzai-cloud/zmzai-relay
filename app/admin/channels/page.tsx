@@ -39,6 +39,8 @@ export default async function AdminChannelsPage() {
     modelCosts: c.modelCosts ?? {},
     costMultiplier: c.costMultiplier ?? 1,
     executeMultiplier: c.executeMultiplier ?? 1,
+    consecutiveFailures: c.consecutiveFailures ?? 0,
+    cooldownUntil: c.cooldownUntil ? new Date(c.cooldownUntil).toISOString() : null,
     enabled: c.enabled,
     timeoutMs: c.timeoutMs,
   }));

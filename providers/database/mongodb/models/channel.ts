@@ -9,6 +9,10 @@ import {
 export const channelProtocols = ["openai-compat"] as const;
 export type ChannelProtocol = (typeof channelProtocols)[number];
 
+/** 渠道健康度：连续失败达阈值进入冷却，冷却到期后自动恢复参与路由（被动探测，成功即清零）。 */
+export const CHANNEL_COOLDOWN_THRESHOLD = 3;
+export const CHANNEL_COOLDOWN_MS = 5 * 60 * 1000;
+
 /** 对外统一模型名 → 上游实际模型名 的一条映射。 */
 export interface ModelMapping {
   public: string;    // 对外 "gpt-5.6-terra"
@@ -70,6 +74,10 @@ export interface ChannelRecord {
   costMultiplier: number;
   /** 执行倍率：对用户实际收费 = 模型标准价 × 执行倍率（渠道按官方标准价折扣销售时配置） */
   executeMultiplier: number;
+  /** 连续失败次数：成功一次即清零，达 CHANNEL_COOLDOWN_THRESHOLD 进入冷却 */
+  consecutiveFailures: number;
+  /** 冷却截止时间：此时间前自动路由跳过该渠道（全部候选都在冷却时豁免） */
+  cooldownUntil: Date | null;
   enabled: boolean;
   timeoutMs: number;
   createdAt: Date;
@@ -107,6 +115,8 @@ const channelSchema = new Schema<ChannelRecord>(
     modelCosts: { type: Schema.Types.Mixed, default: {} },
     costMultiplier: { type: Number, required: true, default: 1, min: 0.01, max: 100 },
     executeMultiplier: { type: Number, required: true, default: 1, min: 0.01, max: 100 },
+    consecutiveFailures: { type: Number, required: true, default: 0, min: 0 },
+    cooldownUntil: { type: Date, default: null },
     enabled: { type: Boolean, required: true, default: true },
     timeoutMs: { type: Number, required: true, default: 60000, min: 1000 },
   },

@@ -14,6 +14,8 @@ interface Channel {
   modelCosts: Record<string, ModelCostEntry>;
   costMultiplier: number;
   executeMultiplier: number;
+  consecutiveFailures: number;
+  cooldownUntil: string | null;
   enabled: boolean; timeoutMs: number;
 }
 interface ChannelForm {
@@ -154,7 +156,15 @@ export function ChannelAdminPanel({ initialChannels }: { initialChannels: Channe
                       {Object.keys(channel.modelCosts ?? {}).length > 0 ? <span className="block">覆盖 {Object.keys(channel.modelCosts).length} 个模型</span> : null}
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-muted">×{channel.executeMultiplier ?? 1}</td>
-                    <td className="px-4 py-3"><Badge variant={channel.enabled ? "success" : "outline"} size="sm">{channel.enabled ? "启用" : "停用"}</Badge></td>
+                    <td className="px-4 py-3">
+                      <Badge variant={channel.enabled ? "success" : "outline"} size="sm">{channel.enabled ? "启用" : "停用"}</Badge>
+                      {(() => {
+                        const cooling = channel.cooldownUntil ? new Date(channel.cooldownUntil).getTime() > Date.now() : false;
+                        if (cooling) return <span className="mt-1 block"><Badge variant="warning" size="sm">冷却中至 {new Date(channel.cooldownUntil as string).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}</Badge></span>;
+                        if ((channel.consecutiveFailures ?? 0) > 0) return <span className="mt-1 block"><Badge variant="warning" size="sm">连续失败 {channel.consecutiveFailures}</Badge></span>;
+                        return null;
+                      })()}
+                    </td>
                     <td className="px-4 py-3 text-right">
                       <Button type="button" variant="ghost" size="sm" onClick={() => beginEdit(channel)}>编辑</Button>
                       <Button type="button" variant="ghost" size="sm" onClick={() => testChannel(channel._id)}>测试</Button>
