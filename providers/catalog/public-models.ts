@@ -10,9 +10,10 @@ import { type PublicChannel, type PublicChannelModel, type PublicModel, moneyMic
 
 /** @deprecated Use `getPublicChannels()` instead — channel-first catalog. */
 export async function getPublicModels(): Promise<PublicModel[]> {
+  const now = new Date();
   const [prices, channels] = await Promise.all([
     ModelPriceModel.find({ enabled: true }).sort({ model: 1 }).lean(),
-    ChannelModel.find({ enabled: true }).select("models").lean(),
+    ChannelModel.find({ enabled: true, $or: [{ cooldownUntil: null }, { cooldownUntil: { $lte: now } }] }).select("models").lean(),
   ]);
   const routable = new Set(channels.flatMap((channel) => channel.models.map((mapping) => mapping.public)));
   return prices.map((price) => ({
@@ -28,11 +29,13 @@ export async function getPublicModels(): Promise<PublicModel[]> {
   }));
 }
 
-/** 渠道优先目录：以渠道为主键，每个渠道下列出可用模型（含价格）。 */
+/** 渠道优先目录：以渠道为主键，每个渠道下列出可用模型（含价格）。
+ *  冷却中的渠道不进入目录——消费方（模型选择器/定价页）展示的应是有健康渠道的模型。 */
 export async function getPublicChannels(): Promise<PublicChannel[]> {
+  const now = new Date();
   const [prices, channels] = await Promise.all([
     ModelPriceModel.find({ enabled: true }).lean(),
-    ChannelModel.find({ enabled: true }).sort({ priority: 1 }).lean(),
+    ChannelModel.find({ enabled: true, $or: [{ cooldownUntil: null }, { cooldownUntil: { $lte: now } }] }).sort({ priority: 1 }).lean(),
   ]);
   const priceMap = new Map(prices.map((p) => [p.model, p]));
   return channels.map((channel) => ({
