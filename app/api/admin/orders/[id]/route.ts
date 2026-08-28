@@ -31,8 +31,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     await session.withTransaction(async () => {
       const order = await WalletOrderModel.findById(id).session(session);
       if (!order) throw new Error("ORDER_NOT_FOUND");
-      if (order.status !== "submitted") throw new Error("ORDER_NOT_SUBMITTED");
+      // 新流程用户只创建申请不提交凭证，pending 直接可审；submitted 保留旧流程兼容
+      if (order.status !== "pending" && order.status !== "submitted") throw new Error("ORDER_NOT_SUBMITTED");
       const now = new Date();
+      if (order.status === "pending" && order.expiresAt.getTime() <= now.getTime()) {
+        order.status = "expired";
+        await order.save({ session });
+        throw new Error("ORDER_CLAIM_EXPIRED");
+      }
       if (parsed.data.action === "reject") {
         order.status = "rejected";
         order.reviewedAt = now;
@@ -85,8 +91,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     });
   } catch (error) {
     const code = error instanceof Error ? error.message : "ORDER_REVIEW_FAILED";
-    const status = code === "ORDER_NOT_FOUND" ? 404 : code === "ORDER_NOT_SUBMITTED" ? 409 : 400;
-    return NextResponse.json({ error: code === "ORDER_NOT_FOUND" ? "订单不存在" : code === "ORDER_NOT_SUBMITTED" ? "订单已处理，不能重复审核" : "订单审核失败", code }, { status });
+    const status = code === "ORDER_NOT_FOUND" ? 404 : code === "ORDER_NOT_SUBMITTED" ? 409 : code === "ORDER_CLAIM_EXPIRED" ? 409 : 400;
+    return NextResponse.json({ error: code === "ORDER_NOT_FOUND" ? "订单不存在" : code === "ORDER_NOT_SUBMITTED" ? "订单已处理，不能重复审核" : code === "ORDER_CLAIM_EXPIRED" ? "申请码已过期，用户需重新申请" : "订单审核失败", code }, { status });
   } finally { await session.endSession(); }
   await AdminAuditModel.create({ operatorUserId: admin.id, resourceType: "wallet_order", resourceId: id, before: null, after: result, reason: parsed.data.reviewNote || `人工收款订单${parsed.data.action === "approve" ? "确认" : "驳回"}` });
   return NextResponse.json(result);

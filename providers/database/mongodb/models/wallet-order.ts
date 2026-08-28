@@ -15,6 +15,8 @@ export interface WalletOrderRecord {
   paymentMethod: PaymentMethod;
   status: WalletOrderStatus;
   expiresAt: Date;
+  /** 申请码：用户发给管理员的凭据，管理员凭码在后台定位订单核销 */
+  claimKey: string | null;
   payerName: string | null;
   screenshotUrl: string | null;
   paymentNote: string | null;
@@ -39,6 +41,7 @@ const schema = new Schema<WalletOrderRecord>({
   paymentMethod: { type: String, enum: paymentMethods, required: true },
   status: { type: String, enum: walletOrderStatuses, required: true, default: "pending", index: true },
   expiresAt: { type: Date, required: true, index: true },
+  claimKey: { type: String, default: null, maxlength: 16 },
   payerName: { type: String, default: null, maxlength: 100 },
   screenshotUrl: { type: String, default: null, maxlength: 2000 },
   paymentNote: { type: String, default: null, maxlength: 500 },
@@ -53,6 +56,8 @@ const schema = new Schema<WalletOrderRecord>({
 
 schema.index({ userId: 1, createdAt: -1 });
 schema.index({ status: 1, createdAt: -1 });
+// 申请码唯一；历史订单为 null 不受 sparse 索引约束
+schema.index({ claimKey: 1 }, { unique: true, sparse: true });
 
 export const WalletOrderModel =
   (models.WalletOrder as Model<WalletOrderRecord> | undefined) ?? model<WalletOrderRecord>("WalletOrder", schema);
