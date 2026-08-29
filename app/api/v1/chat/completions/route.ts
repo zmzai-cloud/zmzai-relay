@@ -118,6 +118,7 @@ async function consumeRateLimit(keyId: string, limit: number): Promise<boolean> 
 }
 
 export async function POST(req: NextRequest) {
+  const traceId = req.headers.get("x-trace-id"); // 透传 agent 侧生成的追踪 ID（遥测用，可空）
   const caller = await callerFor(req);
   if (!caller) return error("UNAUTHENTICATED", 401, "需要有效的 API Token 或登录会话");
   const body = await req.json().catch(() => null);
@@ -207,7 +208,7 @@ export async function POST(req: NextRequest) {
         await markChannelFailure(channel._id);
         continue;
       }
-      if (parsed.data.stream && upstream.body) return streamResponse(upstream.body, usage._id, channel, upstreamModel, parsed.data.model, effective, started);
+      if (parsed.data.stream && upstream.body) return streamResponse(upstream.body, usage._id, channel, upstreamModel, parsed.data.model, effective, started, traceId);
       const json = await upstream.json().catch(() => null);
       const tokens = json?.usage as Record<string, unknown> | undefined;
       if (!tokens) { await releaseReservation(usage._id); await UsageModel.updateOne({ _id: usage._id }, { $set: { status: "unsettled", lastError: "upstream omitted usage" } }); return error("USAGE_UNAVAILABLE", 502, "上游未返回用量，已取消扣费"); }
@@ -219,7 +220,7 @@ export async function POST(req: NextRequest) {
       const channelCosts = resolveChannelCosts(channel, parsed.data.model);
       const cost = channelCosts ? chargeMicros(regularInput, channelCosts.inputCostPer1kTokensMicros) + chargeMicros(cacheRead, channelCosts.cacheReadCostPer1kTokensMicros) + chargeMicros(cacheWrite, channelCosts.cacheWriteCostPer1kTokensMicros) + chargeMicros(completion, channelCosts.outputCostPer1kTokensMicros) : 0;
       await ChannelAttemptModel.create({ usageId: usage._id, channelId: channel._id, upstreamModel, status: "completed", latencyMs: Date.now() - started, error: null, costStatus: channelCosts ? "known" : "unknown" });
-      await settleReservation(usage._id, { chargedMicros: charged, costMicros: cost, promptTokens: prompt, completionTokens: completion, cacheReadTokens: cacheRead, cacheWriteTokens: cacheWrite, channelId: channel._id, upstreamModel, latencyMs: Date.now() - started, inputPricePer1kMicros: effective.inputPricePer1kMicros, outputPricePer1kMicros: effective.outputPricePer1kMicros, cacheReadPricePer1kMicros: cachePrices.cacheRead, cacheWritePricePer1kMicros: cachePrices.cacheWrite, inputCostPer1kTokensMicros: channelCosts?.inputCostPer1kTokensMicros ?? 0, outputCostPer1kTokensMicros: channelCosts?.outputCostPer1kTokensMicros ?? 0, cacheReadCostPer1kTokensMicros: channelCosts?.cacheReadCostPer1kTokensMicros ?? 0, cacheWriteCostPer1kTokensMicros: channelCosts?.cacheWriteCostPer1kTokensMicros ?? 0 });
+      await settleReservation(usage._id, { chargedMicros: charged, costMicros: cost, promptTokens: prompt, completionTokens: completion, cacheReadTokens: cacheRead, cacheWriteTokens: cacheWrite, channelId: channel._id, upstreamModel, latencyMs: Date.now() - started, inputPricePer1kMicros: effective.inputPricePer1kMicros, outputPricePer1kMicros: effective.outputPricePer1kMicros, cacheReadPricePer1kMicros: cachePrices.cacheRead, cacheWritePricePer1kMicros: cachePrices.cacheWrite, inputCostPer1kTokensMicros: channelCosts?.inputCostPer1kTokensMicros ?? 0, outputCostPer1kTokensMicros: channelCosts?.outputCostPer1kTokensMicros ?? 0, cacheReadCostPer1kTokensMicros: channelCosts?.cacheReadCostPer1kTokensMicros ?? 0, cacheWriteCostPer1kTokensMicros: channelCosts?.cacheWriteCostPer1kTokensMicros ?? 0 }, { traceId });
       await markChannelSuccess(channel._id);
       if (specifiedChannelName) return NextResponse.json(json);
       return NextResponse.json(json);
@@ -233,7 +234,7 @@ export async function POST(req: NextRequest) {
  *  才判定为死连接。活跃的长输出（如几百行脚本）不会被误杀。 */
 const UPSTREAM_STREAM_IDLE_TIMEOUT_MS = 120_000;
 
-function streamResponse(body: ReadableStream<Uint8Array>, usageId: import("mongoose").Types.ObjectId, channel: { _id: import("mongoose").Types.ObjectId; inputCostPer1kTokensMicros: number | null; outputCostPer1kTokensMicros: number | null; cacheReadCostPer1kTokensMicros: number | null; cacheWriteCostPer1kTokensMicros: number | null; modelCosts: Record<string, ModelCostOverride> }, upstreamModel: string, publicModel: string, price: { inputPricePer1kMicros: number; outputPricePer1kMicros: number; cacheReadPricePer1kMicros: number; cacheWritePricePer1kMicros: number }, started: number) {
+function streamResponse(body: ReadableStream<Uint8Array>, usageId: import("mongoose").Types.ObjectId, channel: { _id: import("mongoose").Types.ObjectId; inputCostPer1kTokensMicros: number | null; outputCostPer1kTokensMicros: number | null; cacheReadCostPer1kTokensMicros: number | null; cacheWriteCostPer1kTokensMicros: number | null; modelCosts: Record<string, ModelCostOverride> }, upstreamModel: string, publicModel: string, price: { inputPricePer1kMicros: number; outputPricePer1kMicros: number; cacheReadPricePer1kMicros: number; cacheWritePricePer1kMicros: number }, started: number, traceId?: string | null) {
   const stream = new ReadableStream<Uint8Array>({ async start(controller) {
     const reader = body.getReader(); const decoder = new TextDecoder(); let raw = "";
     try { for (;;) {
@@ -266,7 +267,7 @@ function streamResponse(body: ReadableStream<Uint8Array>, usageId: import("mongo
         const cacheReadCost = channelCosts?.cacheReadCostPer1kTokensMicros ?? 0; const cacheWriteCost = channelCosts?.cacheWriteCostPer1kTokensMicros ?? 0;
         const cost = channelCosts ? chargeMicros(regularInput, inputCost) + chargeMicros(cacheRead, cacheReadCost) + chargeMicros(cacheWrite, cacheWriteCost) + chargeMicros(completion, outputCost) : 0;
         await ChannelAttemptModel.create({ usageId, channelId: channel._id, upstreamModel, status: "completed", latencyMs: Date.now() - started, error: null, costStatus: channelCosts ? "known" : "unknown" });
-        await settleReservation(usageId, { chargedMicros: charged, costMicros: cost, promptTokens: prompt, completionTokens: completion, cacheReadTokens: cacheRead, cacheWriteTokens: cacheWrite, channelId: channel._id, upstreamModel, latencyMs: Date.now() - started, inputPricePer1kMicros: price.inputPricePer1kMicros, outputPricePer1kMicros: price.outputPricePer1kMicros, cacheReadPricePer1kMicros: cachePrices.cacheRead, cacheWritePricePer1kMicros: cachePrices.cacheWrite, inputCostPer1kTokensMicros: inputCost, outputCostPer1kTokensMicros: outputCost, cacheReadCostPer1kTokensMicros: cacheReadCost, cacheWriteCostPer1kTokensMicros: cacheWriteCost });
+        await settleReservation(usageId, { chargedMicros: charged, costMicros: cost, promptTokens: prompt, completionTokens: completion, cacheReadTokens: cacheRead, cacheWriteTokens: cacheWrite, channelId: channel._id, upstreamModel, latencyMs: Date.now() - started, inputPricePer1kMicros: price.inputPricePer1kMicros, outputPricePer1kMicros: price.outputPricePer1kMicros, cacheReadPricePer1kMicros: cachePrices.cacheRead, cacheWritePricePer1kMicros: cachePrices.cacheWrite, inputCostPer1kTokensMicros: inputCost, outputCostPer1kTokensMicros: outputCost, cacheReadCostPer1kTokensMicros: cacheReadCost, cacheWriteCostPer1kTokensMicros: cacheWriteCost }, { traceId });
         await markChannelSuccess(channel._id);
       }
       controller.close();

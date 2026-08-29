@@ -70,6 +70,8 @@ pnpm seed:deepseek
 | `RELAY_INTERNAL_ORIGIN` | `http://127.0.0.1:3002` | Agent 内部调用 Relay 的私网入口 |
 | `RELAY_BRIDGE_URL` | `http://127.0.0.1:8787` | 本机工具桥接端点（zmzai-bridge） |
 | `RELAY_BRIDGE_TOKEN` | 空（回退 dev 默认） | 桥接内部 API Token，生产必须设置 |
+| `BILLING_INGEST_URL` | 空 | usage 事件上报地址（zmzai-billing `/api/v1/ingest`）；空 = 静默跳过 |
+| `BILLING_INGEST_KEY` | 空 | 上报服务密钥（billing `INGEST_SERVICE_KEYS` 中 relay 那把） |
 
 ## 本机工具桥接（local-tool）
 

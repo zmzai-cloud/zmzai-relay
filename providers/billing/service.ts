@@ -6,6 +6,7 @@ import { BalanceReservationModel } from "@/providers/database/mongodb/models/res
 import { UsageModel } from "@/providers/database/mongodb/models/usage";
 import { currentPeriod } from "./period";
 import { ensureWelcomeCredit } from "./onboarding";
+import { emitUsageRecorded } from "@/providers/telemetry";
 
 const RESERVATION_MS = 10 * 60 * 1000;
 
@@ -101,8 +102,10 @@ interface Settlement {
   cacheWriteCostPer1kTokensMicros: number;
 }
 
-export async function settleReservation(usageId: Types.ObjectId, settlement: Settlement | null): Promise<void> {
+export async function settleReservation(usageId: Types.ObjectId, settlement: Settlement | null, context?: { traceId?: string | null }): Promise<void> {
   const dbSession = await mongoose.startSession();
+  // 遥测钩子：事务提交成功后异步发 usage.recorded（fire-and-forget，绝不阻塞/影响扣费）。
+  let settledUserId: string | null = null;
   try {
     await dbSession.withTransaction(async () => {
       const reservation = await BalanceReservationModel.findOne({ usageId, status: "held" }).session(dbSession);
@@ -158,7 +161,27 @@ export async function settleReservation(usageId: Types.ObjectId, settlement: Set
         balanceBeforeMicros: before, balanceAfterMicros: account.balanceMicros, usageId,
         operatorUserId: null, note: null,
       }], { session: dbSession });
+      settledUserId = reservation.userId;
     });
+    if (settledUserId && settlement) {
+      emitUsageRecorded({
+        userId: settledUserId,
+        product: "relay",
+        metric: "tokens",
+        amount: settlement.promptTokens + settlement.completionTokens,
+        costMicros: settlement.chargedMicros,
+        traceId: context?.traceId ?? undefined,
+        meta: {
+          usageId: String(usageId),
+          upstreamModel: settlement.upstreamModel,
+          channelId: String(settlement.channelId),
+          promptTokens: settlement.promptTokens,
+          completionTokens: settlement.completionTokens,
+          latencyMs: settlement.latencyMs,
+          channelCostMicros: settlement.costMicros,
+        },
+      });
+    }
   } finally {
     await dbSession.endSession();
   }

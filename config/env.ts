@@ -38,6 +38,9 @@ const envSchema = z.object({
   RELAY_BRIDGE_URL: z.string().url().default("http://127.0.0.1:8787"),
   /** 调用桥接内部 API 的 Token；未设置时回退 bridge 仓库的 dev 默认值。生产必须设置。 */
   RELAY_BRIDGE_TOKEN: optionalEnvString(),
+  /** 遥测：usage 事件推送到 zmzai-billing /api/v1/ingest。未配置时静默跳过（不阻塞计费主流程）。 */
+  BILLING_INGEST_URL: optionalEnvString(),
+  BILLING_INGEST_KEY: optionalEnvString(),
 });
 
 export type ServerEnv = z.infer<typeof envSchema>;

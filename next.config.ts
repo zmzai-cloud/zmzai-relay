@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   // 私有 TS 包，需显式转译
-  transpilePackages: ["@zmzai/db", "@zmzai/theme"],
+  transpilePackages: ["@zmzai/db", "@zmzai/theme", "@zmzai/contracts"],
   // OpenAI 兼容：标准 /v1/* 路径映射到内部 /api/v1/*
   // 让 zcode、codex 等工具可以用 https://m.zmzai.cloud/v1 作为 base URL
   async rewrites() {
