@@ -22,9 +22,11 @@ export const dynamic = "force-dynamic";
 
 const chatMessageSchema = z.object({
   role: z.string(),
-  // OpenAI wire format 允许 content 为字符串或多模态块数组（如 pi-ai/agent 框架的 blocks 结构）
+  // OpenAI wire format 允许 content 为字符串或多模态块数组；块只需 type，
+  // 其余字段（text/image_url 等）随 passthrough 透传——多模态块（image）
+  // 没有 text 字段，若强制要求会被误拒为 400 INVALID_BODY。
   content: z.string().nullable().or(
-    z.array(z.object({ type: z.string(), text: z.string().nullable() }).passthrough()).min(1),
+    z.array(z.object({ type: z.string() }).passthrough()).min(1),
   ),
 }).passthrough();
 
