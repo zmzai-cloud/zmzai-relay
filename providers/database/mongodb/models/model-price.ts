@@ -1,6 +1,8 @@
 import { model, models, Schema, type Model } from "mongoose";
 
-export const reasoningEfforts = ["low", "medium", "high", "xhigh", "max"] as const;
+/** reasoning_effort 档位。与 framework ThinkingEffort 对齐（含 minimal；off
+ *  不在列——harness 对 off 不发送该字段）。 */
+export const reasoningEfforts = ["minimal", "low", "medium", "high", "xhigh", "max"] as const;
 export type ReasoningEffort = (typeof reasoningEfforts)[number];
 
 /** 默认模型种子（首次部署/seed 用）。运行时以 ModelPrice 集合中的记录为准，

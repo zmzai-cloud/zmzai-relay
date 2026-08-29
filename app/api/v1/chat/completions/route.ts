@@ -122,7 +122,12 @@ export async function POST(req: NextRequest) {
   if (!caller) return error("UNAUTHENTICATED", 401, "需要有效的 API Token 或登录会话");
   const body = await req.json().catch(() => null);
   const parsed = chatSchema.safeParse(body);
-  if (!parsed.success) return error("INVALID_BODY", 400, "请求体格式不正确");
+  // 400 带首个校验错误明细（字段路径 + 原因），避免调用方只能看到笼统的
+  // 「请求体格式不正确」而无法定位（如 reasoning_effort 档位不在枚举内）。
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    return error("INVALID_BODY", 400, `请求体格式不正确：${issue ? issue.path.join(".") + " " + issue.message : "未知字段"}`);
+  }
   const requestedMaxTokens = parsed.data.max_tokens ?? parsed.data.max_output_tokens ?? parsed.data.max_completion_tokens;
   if (requestedMaxTokens && !parsed.data.max_tokens) parsed.data.max_tokens = requestedMaxTokens;
   if (caller.allowedModels && !caller.allowedModels.includes(parsed.data.model)) return error("MODEL_NOT_ALLOWED", 403, "此 Token 不允许调用该模型");
