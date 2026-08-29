@@ -3,13 +3,15 @@
 @import "@zmzai/theme/fonts";
 @source "../node_modules/@zmzai/theme/src/**/*.{ts,tsx}";
 
-/* Relay 主题 — tokens 统一来自 @zmzai/theme（v0.6.0 起纯白+荧光绿，
-   与 zmzai.cloud 全品牌统一）。仅保留 app 特有 token；
-   颜色/字体/圆角/基础 motion 由包提供。 */
+/* Relay 主题 — tokens 统一来自 @zmzai/theme（v0.8.0 墨骨：墨黑结构 +
+   绿色语义）。仅保留 app 特有 token；颜色/字体/圆角/阴影/基础 motion
+   由包提供。
+
+   accent-readable 曾在此覆盖为荧光绿；v0.8.0 起跟随包默认（墨黑），
+   绿只保留给语义状态，不再当链接色。 */
 
 @theme {
-  /* 白底上可读的荧光绿（文字/链接用，比 accent 暗一档） */
-  --color-accent-readable: oklch(0.55 0.19 145);
+  --radius-input: 3px;
 }
 
 
