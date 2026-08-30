@@ -161,7 +161,7 @@ export async function settleReservation(usageId: Types.ObjectId, settlement: Set
         balanceBeforeMicros: before, balanceAfterMicros: account.balanceMicros, usageId,
         operatorUserId: null, note: null,
       }], { session: dbSession });
-      settledUserId = reservation.userId;
+      settledUserId = String(reservation.userId);
     });
     if (settledUserId && settlement) {
       emitUsageRecorded({
