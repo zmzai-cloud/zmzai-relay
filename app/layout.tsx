@@ -6,7 +6,7 @@ import "./globals.css";
 const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "700"], variable: "--font-mono", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "Relay · zmzai.cloud",
+  title: "Margin · zmzai.cloud",
   description: "OpenAI 兼容的统一模型 API 入口 · zmzai.cloud 子产品",
 };
 
