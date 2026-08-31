@@ -88,7 +88,7 @@ export default async function ProfitPage({ searchParams }: { searchParams: Promi
           <Link
             key={d}
             href={`/admin/profit?days=${d}`}
-            className={`rounded-md px-2.5 py-1 transition-colors ${days === d ? "bg-accent/10 text-accent-readable" : "text-muted hover:text-accent"}`}
+            className={`rounded-md px-2.5 py-1 transition-colors ${days === d ? "bg-accent/10 text-accent" : "text-muted hover:text-accent"}`}
           >
             最近 {d} 天
           </Link>

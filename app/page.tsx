@@ -24,7 +24,7 @@ export default async function HomePage() {
     <PublicShell user={user ? { name: user.name } : null} isAdminUser={user?.role === "admin"}>
       <section className="max-w-2xl">
         <p className="font-mono text-xs tracking-wide text-muted">{totalModels} 个模型 · {channels.length} 条上游渠道 · OpenAI 兼容</p>
-        <h1 className="mt-4 text-4xl font-semibold leading-tight tracking-tight">一个入口，调用所有上游模型</h1>
+        <h1 className="mt-4 font-serif text-4xl font-bold leading-tight tracking-tight">一个入口，调用所有上游模型</h1>
         <p className="mt-4 text-lg leading-8 text-ink-2">
           Relay 提供 OpenAI 兼容的统一 API：按模型自动路由到上游渠道，价格公开、按 token 计费、缓存命中享折扣。
         </p>
@@ -38,14 +38,14 @@ export default async function HomePage() {
               <Button>登录开始使用</Button>
             </Link>
           )}
-          <Link href="/models" className="text-sm text-accent-readable underline underline-offset-4">查看模型与价格</Link>
+          <Link href="/models" className="text-sm text-accent underline underline-offset-4">查看模型与价格</Link>
         </div>
       </section>
 
       <section className="mt-14">
         <div className="mb-4 flex items-baseline justify-between">
           <h2 className="text-xl font-semibold">可用模型</h2>
-          <Link href="/models" className="font-mono text-xs text-muted hover:text-accent-readable">完整目录 →</Link>
+          <Link href="/models" className="font-mono text-xs text-muted hover:text-accent">完整目录 →</Link>
         </div>
         <ModelTable channels={channels} />
       </section>

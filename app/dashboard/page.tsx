@@ -64,7 +64,7 @@ export default async function DashboardPage() {
           </svg>
           <p className="text-sm text-ink-2">
             当前账户余额已用尽。
-            <Link href="/dashboard/billing" className="ml-1 font-medium text-accent-readable underline underline-offset-4">去充值</Link>
+            <Link href="/dashboard/billing" className="ml-1 font-medium text-accent underline underline-offset-4">去充值</Link>
           </p>
         </div>
       ) : null}
@@ -82,7 +82,7 @@ export default async function DashboardPage() {
       <div className="mt-9">
         <div className="mb-3 flex items-baseline justify-between">
           <h2 className="text-lg font-semibold">最近调用</h2>
-          <Link href="/dashboard/activity" className="font-mono text-xs text-muted hover:text-accent-readable">全部记录 →</Link>
+          <Link href="/dashboard/activity" className="font-mono text-xs text-muted hover:text-accent">全部记录 →</Link>
         </div>
         {usage.length ? (
           <div className="space-y-3">
@@ -108,7 +108,7 @@ export default async function DashboardPage() {
         ) : (
           <div className="rounded-xl border border-dashed border-line px-4 py-10 text-center">
             <p className="text-sm text-muted">
-              还没有调用记录。创建 <Link href="/dashboard/keys" className="text-accent-readable underline underline-offset-4">API Key</Link> 后即可开始调用。
+              还没有调用记录。创建 <Link href="/dashboard/keys" className="text-accent underline underline-offset-4">API Key</Link> 后即可开始调用。
             </p>
           </div>
         )}

@@ -157,7 +157,7 @@ export function ModelsPanel({ initialPrices }: { initialPrices: ModelPriceRow[] 
       <form ref={formRef} onSubmit={submit} className="flex flex-col gap-3 rounded-lg border border-line bg-bg p-5">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">{editing ? `编辑模型 · ${editing}` : "注册新模型"}</h2>
-          {editing ? <button type="button" onClick={startNew} className="text-sm text-accent-readable underline underline-offset-4">取消编辑</button> : null}
+          {editing ? <button type="button" onClick={startNew} className="text-sm text-accent underline underline-offset-4">取消编辑</button> : null}
         </div>
         <Input name="model" required readOnly={Boolean(editing)} className="font-mono text-sm" placeholder="模型名，例如 mimo-v2.5-pro" onInput={(e) => setOfficial(OFFICIAL_PRICES[(e.target as HTMLInputElement).value.trim()] ?? null)} />
         {official ? (
@@ -192,8 +192,8 @@ export function ModelsPanel({ initialPrices }: { initialPrices: ModelPriceRow[] 
         <Input name="featuredDescription" className="" placeholder="推荐描述，例如：速度、质量和成本表现均衡的模型" />
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="enabled" defaultChecked className="" /> 开放调用</label>
         <Input name="reason" required className="" placeholder="操作原因（写入审计日志）" />
-        {error ? <p className="text-sm text-red-500">{error}</p> : null}
-        {message ? <p className="font-mono text-sm text-accent-readable">{message}</p> : null}
+        {error ? <p className="text-sm text-danger">{error}</p> : null}
+        {message ? <p className="font-mono text-sm text-accent">{message}</p> : null}
         <Button className="self-start">保存模型</Button>
       </form>
 
@@ -226,7 +226,7 @@ export function ModelsPanel({ initialPrices }: { initialPrices: ModelPriceRow[] 
                 <td className="px-4 py-3 font-mono text-xs text-muted">{row.allowedReasoningEfforts.join(" · ")}</td>
                 <td className="px-4 py-3">
                   <div className="flex shrink-0 items-center gap-2">
-                    <button type="button" onClick={() => startEdit(row)} className="text-sm text-accent-readable underline underline-offset-4">编辑</button>
+                    <button type="button" onClick={() => startEdit(row)} className="text-sm text-accent underline underline-offset-4">编辑</button>
                     <button type="button" onClick={() => toggleEnabled(row)} className="text-sm text-muted underline underline-offset-4">{row.enabled ? "停用" : "启用"}</button>
                   </div>
                 </td>

@@ -86,7 +86,7 @@ export function OrderAdminPanel({ initialOrders }: { initialOrders: Order[] }) {
                 申请码 {order.claimKey ?? "—"} · 收款 {cny(order.paymentAmountFen)} · 到账 {cnyMicrosLabel(order.creditMicros, 2)}{order.status === "pending" && order.expiresAt ? ` · 码有效期至 ${new Date(order.expiresAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}` : ""}
               </p>
               <p className="mt-2 text-xs text-muted">付款人：{order.payerName || "未填写"}{order.paymentNote ? ` · ${order.paymentNote}` : ""}</p>
-              {order.screenshotUrl ? <a href={order.screenshotUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block font-mono text-xs text-accent-readable underline">查看付款截图</a> : null}
+              {order.screenshotUrl ? <a href={order.screenshotUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block font-mono text-xs text-accent underline">查看付款截图</a> : null}
               {reviewable(order) ? (
                 <div className="mt-4 flex gap-3">
                   <Button type="button" disabled={busy === order._id} onClick={() => review(order, "approve")} className="disabled:opacity-50">确认收款并开通</Button>
@@ -99,7 +99,7 @@ export function OrderAdminPanel({ initialOrders }: { initialOrders: Order[] }) {
           ))}
         </ul>
       )}
-      {message ? <p className="mt-4 text-sm text-accent-readable">{message}</p> : null}
+      {message ? <p className="mt-4 text-sm text-accent">{message}</p> : null}
     </div>
   );
 }

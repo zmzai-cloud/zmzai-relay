@@ -31,7 +31,7 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ mo
   ];
   return (
     <PublicShell user={user} isAdminUser={user?.role === "admin"}>
-      <Link href="/models" className="font-mono text-xs text-muted hover:text-accent-readable">← 返回模型列表</Link>
+      <Link href="/models" className="font-mono text-xs text-muted hover:text-accent">← 返回模型列表</Link>
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <h1 className="font-mono text-3xl font-semibold tracking-tight">{model.model}</h1>
         <Badge variant="outline" size="sm">渠道 {channel}</Badge>
@@ -60,7 +60,7 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ mo
       </div>
 
       <p className="mt-8 text-sm text-ink-2">
-        完整参数说明见 <Link href="/docs" className="text-accent-readable underline underline-offset-4">API 文档</Link>。
+        完整参数说明见 <Link href="/docs" className="text-accent underline underline-offset-4">API 文档</Link>。
       </p>
     </PublicShell>
   );

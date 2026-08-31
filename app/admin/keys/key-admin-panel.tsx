@@ -206,7 +206,7 @@ export function KeyAdminPanel({ initialKeys }: { initialKeys: KeyItem[] }) {
         {newKey ? (
           <div className="rounded-lg border border-accent bg-bg p-5">
             <p className="font-mono text-xs text-muted">新 Key 只显示这一次，立刻复制保存</p>
-            <code className="mt-2 block break-all font-mono text-sm text-accent-readable">{newKey}</code>
+            <code className="mt-2 block break-all font-mono text-sm text-accent">{newKey}</code>
             <p className="mt-4 text-xs text-muted">调用方式：</p>
             <pre className="mt-1 overflow-x-auto rounded-md bg-surface p-3 font-mono text-xs text-ink-2">{`curl https://m.zmzai.cloud/api/v1/chat/completions \\
   -H "Authorization: Bearer ${newKey}" \\

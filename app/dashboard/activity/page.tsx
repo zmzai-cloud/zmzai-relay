@@ -74,7 +74,7 @@ export default async function ActivityPage({
           <div className="rounded-xl border border-dashed border-line px-4 py-10 text-center">
             <p className="text-sm text-muted">
               还没有调用记录。创建{" "}
-              <Link href="/dashboard/keys" className="text-accent-readable underline underline-offset-4">
+              <Link href="/dashboard/keys" className="text-accent underline underline-offset-4">
                 API Key
               </Link>{" "}
               后即可开始调用。

@@ -145,7 +145,7 @@ export function ChannelAdminPanel({ initialChannels }: { initialChannels: Channe
                     <td className="px-4 py-3">
                       <p className="font-medium">{channel.name}</p>
                       <p className="break-all font-mono text-xs text-muted">{channel.baseUrl}</p>
-                      {testResult[channel._id] ? <p className="mt-1 font-mono text-xs text-accent-readable">{testResult[channel._id]}</p> : null}
+                      {testResult[channel._id] ? <p className="mt-1 font-mono text-xs text-accent">{testResult[channel._id]}</p> : null}
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-muted">P{channel.priority}</td>
                     <td className="px-4 py-3 font-mono text-xs text-muted">{channel.models.map((mapping) => (mapping.public === mapping.upstream ? mapping.public : `${mapping.public}→${mapping.upstream}`)).join(" · ")}</td>
@@ -210,7 +210,7 @@ export function ChannelAdminPanel({ initialChannels }: { initialChannels: Channe
             <Button type="button" variant="secondary" onClick={applyCostMultiplier} className="self-end">按倍率填充成本</Button>
           </div>
           {error ? <p className="text-sm text-danger">{error}</p> : null}
-          {notice ? <p className="text-sm text-accent-readable">{notice}</p> : null}
+          {notice ? <p className="text-sm text-accent">{notice}</p> : null}
           <Button disabled={busy} className="self-start">{busy ? "保存中..." : editing ? "保存修改" : "添加渠道"}</Button>
         </form>
       </div>
