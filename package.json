@@ -14,7 +14,7 @@
   "dependencies": {
     "@zmzai/contracts": "file:../zmzai-contracts",
     "@zmzai/db": "^0.1.0",
-    "@zmzai/theme": "^0.9.2",
+    "@zmzai/theme": "^0.9.3",
     "mongoose": "8.24.1",
     "next": "15.5.21",
     "react": "19.2.8",
