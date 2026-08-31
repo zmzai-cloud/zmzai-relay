@@ -81,7 +81,7 @@ export default async function ProfitPage({ searchParams }: { searchParams: Promi
   const profitClass = (value: number) => (value >= 0 ? "text-success" : "text-danger");
   return (
     <RelayShell role="admin" userName={user.name}>
-      <h1 className="text-2xl font-semibold tracking-tight">毛利报表</h1>
+      <h1 className="font-serif text-2xl font-semibold tracking-tight">毛利报表</h1>
       <p className="mt-2 text-sm text-ink-2">按模型 / 渠道聚合的收入、成本与毛利。统计口径：最近 {days} 天内的成功与待结算调用。</p>
       <div className="mt-4 flex items-center gap-1 font-mono text-xs">
         {[7, 30].map((d) => (

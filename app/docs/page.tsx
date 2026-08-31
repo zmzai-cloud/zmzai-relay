@@ -16,7 +16,7 @@ export default async function PublicDocsPage() {
   return (
     <PublicShell user={user} isAdminUser={user?.role === "admin"}>
       <div className="max-w-3xl">
-        <h1 className="text-3xl font-semibold tracking-tight">API 文档</h1>
+        <h1 className="font-serif text-3xl font-semibold tracking-tight">API 文档</h1>
         <p className="mt-2 text-sm leading-6 text-ink-2">
           Relay 兼容 OpenAI Chat Completions 协议：把 baseURL 指向 <code className="font-mono text-xs">https://m.zmzai.cloud/v1</code>，用 API Key 鉴权即可。zcode、codex 等第三方工具直接使用此地址。模型与价格见 <Link href="/models" className="text-accent underline underline-offset-4">模型列表</Link>。
         </p>

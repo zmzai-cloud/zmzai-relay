@@ -16,7 +16,7 @@ export default async function KeysPage() {
   const [keys, models] = await Promise.all([ApiKeyModel.find({ userId: user.id }).sort({ createdAt: -1 }).lean(), ModelPriceModel.find({ enabled: true }).sort({ model: 1 }).lean()]);
   return (
     <RelayShell role="user" userName={user.name} isAdminUser={user.role === "admin"}>
-      <h1 className="text-2xl font-semibold tracking-tight">API Keys</h1>
+      <h1 className="font-serif text-2xl font-semibold tracking-tight">API Keys</h1>
       <p className="mt-2 text-sm text-ink-2">创建和管理调用凭证，Key 可随时吊销，可为每个 Key 设置模型范围与消费上限。</p>
       <div className="mt-6">
         <TokenPanel

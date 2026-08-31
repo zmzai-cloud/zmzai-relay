@@ -67,7 +67,7 @@ export default async function ActivityPage() {
   }
   return (
     <RelayShell role="admin" userName={user.name}>
-      <h1 className="text-2xl font-semibold tracking-tight">调用与账本</h1>
+      <h1 className="font-serif text-2xl font-semibold tracking-tight">调用与账本</h1>
       <p className="mt-2 text-sm text-ink-2">全站最近的调用、渠道尝试与余额流水。待核查上游成本：{uncertain} 笔。</p>
       {uncertain > 0 ? (
         <div className="mt-4 rounded-lg border border-line">

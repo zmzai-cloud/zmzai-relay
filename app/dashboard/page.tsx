@@ -54,7 +54,7 @@ export default async function DashboardPage() {
   ];
   return (
     <RelayShell role="user" userName={user.name} isAdminUser={user.role === "admin"}>
-      <h1 className="text-2xl font-semibold tracking-tight">概览</h1>
+      <h1 className="font-serif text-2xl font-semibold tracking-tight">概览</h1>
       <p className="mt-2 text-sm text-ink-2">余额、消费与最近调用。</p>
 
       {availableMicros === 0 ? (

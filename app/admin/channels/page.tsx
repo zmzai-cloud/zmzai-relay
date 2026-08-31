@@ -47,7 +47,7 @@ export default async function AdminChannelsPage() {
 
   return (
     <RelayShell role="admin" userName={user.name}>
-      <h1 className="text-2xl font-semibold tracking-tight">渠道与路由</h1>
+      <h1 className="font-serif text-2xl font-semibold tracking-tight">渠道与路由</h1>
       <p className="mt-2 max-w-2xl text-sm text-ink-2">Token 不绑定渠道；系统按模型映射、启用状态与优先级转发，失败时自动尝试下一个上游。</p>
       <div className="mt-8"><ChannelAdminPanel initialChannels={safe} /></div>
     </RelayShell>

@@ -27,7 +27,7 @@ export default async function BillingPage() {
   ];
   return (
     <RelayShell role="user" userName={user.name} isAdminUser={user.role === "admin"}>
-      <h1 className="text-2xl font-semibold tracking-tight">额度充值</h1>
+      <h1 className="font-serif text-2xl font-semibold tracking-tight">额度充值</h1>
       <p className="mt-2 text-sm text-ink-2">余额按调用实际用量扣减。首次进入会自动获得 ¥1 体验额度。</p>
 
       <div className="mt-6 flex items-center justify-between gap-6 rounded-xl border border-line bg-bg p-6">

@@ -68,7 +68,7 @@ export default async function AdminPage() {
   ];
   return (
     <RelayShell role="admin" userName={user.name}>
-      <h1 className="text-2xl font-semibold tracking-tight">运营概览</h1>
+      <h1 className="font-serif text-2xl font-semibold tracking-tight">运营概览</h1>
       <p className="mt-2 text-sm text-ink-2">调用、毛利与渠道健康度总览；毛利 = 收入 − 上游成本（成本未配置的渠道不计入）。</p>
       <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map(([label, value, hint, danger]) => (

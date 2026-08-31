@@ -25,7 +25,7 @@ export default async function ModelsPage() {
   );
   return (
     <RelayShell role="admin" userName={user.name}>
-      <h1 className="text-2xl font-semibold tracking-tight">模型与价格</h1>
+      <h1 className="font-serif text-2xl font-semibold tracking-tight">模型与价格</h1>
       <p className="mt-2 text-sm text-ink-2">价格与推理强度在这里管理；上游映射在「渠道与路由」维护。</p>
 
       <h2 className="mt-8 text-lg font-semibold">渠道</h2>
