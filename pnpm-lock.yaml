@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@zmzai/contracts':
-        specifier: file:../zmzai-contracts
-        version: file:../zmzai-contracts(zod@3.25.76)
+        specifier: github:zmzai-cloud/zmzai-contracts#main
+        version: git+ssh://git@github.com/zmzai-cloud/zmzai-contracts.git#c5c150c6f6d3636a191049e463a87c5a27ac35c5(zod@3.25.76)
       '@zmzai/db':
         specifier: ^0.1.0
         version: 0.1.0(mongoose@8.24.1)
@@ -785,8 +785,9 @@ packages:
   '@ungap/structured-clone@1.4.0':
     resolution: {integrity: sha512-1mEZtMKPM09vDmQt5y7YvmN2+DFTP7Tg0EWXdic8/C6VRnpb33e4ghisCIE3WZjsE2N8mf+QV1Zqh7ZFYLWInQ==}
 
-  '@zmzai/contracts@file:../zmzai-contracts':
-    resolution: {directory: ../zmzai-contracts, type: directory}
+  '@zmzai/contracts@git+ssh://git@github.com/zmzai-cloud/zmzai-contracts.git#c5c150c6f6d3636a191049e463a87c5a27ac35c5':
+    resolution: {commit: c5c150c6f6d3636a191049e463a87c5a27ac35c5, repo: git@github.com:zmzai-cloud/zmzai-contracts.git, type: git}
+    version: 0.1.0
     peerDependencies:
       zod: ^3.25.0
 
@@ -2098,7 +2099,7 @@ snapshots:
 
   '@ungap/structured-clone@1.4.0': {}
 
-  '@zmzai/contracts@file:../zmzai-contracts(zod@3.25.76)':
+  '@zmzai/contracts@git+ssh://git@github.com/zmzai-cloud/zmzai-contracts.git#c5c150c6f6d3636a191049e463a87c5a27ac35c5(zod@3.25.76)':
     dependencies:
       zod: 3.25.76
 

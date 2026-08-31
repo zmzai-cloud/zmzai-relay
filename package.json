@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@zmzai/contracts": "file:../zmzai-contracts",
+    "@zmzai/contracts": "github:zmzai-cloud/zmzai-contracts#main",
     "@zmzai/db": "^0.1.0",
     "@zmzai/theme": "^0.9.3",
     "mongoose": "8.24.1",
