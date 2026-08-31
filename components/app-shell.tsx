@@ -136,7 +136,7 @@ export function AppShell({
 
   return (
     <ThemeAppShell
-      brand={{ label: "relay", suffix: "· zmzai.cloud", href: "/" }}
+      brand={{ label: "Margin", suffix: "· m.zmzai.cloud", href: "/" }}
       sections={sections}
       pathname={pathname}
       link={Link}
