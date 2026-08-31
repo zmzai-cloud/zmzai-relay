@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Badge } from "@zmzai/theme";
+import { Badge, PageHeader } from "@zmzai/theme";
 import { RelayShell } from "@/components/relay-shell";
 import { getCurrentUser } from "@/providers/auth/session";
 import { connectMongo } from "@/providers/database/mongodb/connection";
@@ -68,8 +68,12 @@ export default async function AdminPage() {
   ];
   return (
     <RelayShell role="admin" userName={user.name}>
-      <h1 className="font-serif text-2xl font-semibold tracking-tight">运营概览</h1>
-      <p className="mt-2 text-sm text-ink-2">调用、毛利与渠道健康度总览；毛利 = 收入 − 上游成本（成本未配置的渠道不计入）。</p>
+      <PageHeader
+        icon="gauge"
+        eyebrow="管理后台"
+        title="运营概览"
+        description="调用、毛利与渠道健康度总览；毛利 = 收入 − 上游成本（成本未配置的渠道不计入）。"
+      />
       <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map(([label, value, hint, danger]) => (
           <div key={label} className="rounded-lg border border-line bg-bg p-5">

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Badge, Terminal } from "@zmzai/theme";
+import { Badge, PageHeader, Terminal } from "@zmzai/theme";
 import { PublicShell } from "@/components/public-shell";
 import { getPublicChannels, moneyMicros } from "@/providers/catalog/public-models";
 import { connectMongo } from "@/providers/database/mongodb/connection";
@@ -32,11 +32,15 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ mo
   return (
     <PublicShell user={user} isAdminUser={user?.role === "admin"}>
       <Link href="/models" className="font-mono text-xs text-muted hover:text-accent">← 返回模型列表</Link>
-      <div className="mt-4 flex flex-wrap items-center gap-3">
-        <h1 className="font-mono text-3xl font-semibold tracking-tight">{model.model}</h1>
-        <Badge variant="outline" size="sm">渠道 {channel}</Badge>
-      </div>
-      <p className="mt-2 text-sm text-ink-2">价格为每 1K token 的人民币单价；缓存未单独配置价格时按输入价计费。</p>
+      <PageHeader
+        className="mt-4"
+        icon="sparkle"
+        eyebrow="模型详情"
+        title={model.model}
+        titleClassName="font-mono"
+        description="价格为每 1K token 的人民币单价；缓存未单独配置价格时按输入价计费。"
+        actions={<Badge variant="outline" size="sm">渠道 {channel}</Badge>}
+      />
 
       <div className="mt-8 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-line bg-line sm:grid-cols-3 lg:grid-cols-6">
         {stats.map(([label, value]) => (

@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { PageHeader } from "@zmzai/theme";
 
 import { BillingPanel } from "@/components/billing-panel";
 import { RelayShell } from "@/components/relay-shell";
@@ -27,8 +28,12 @@ export default async function BillingPage() {
   ];
   return (
     <RelayShell role="user" userName={user.name} isAdminUser={user.role === "admin"}>
-      <h1 className="font-serif text-2xl font-semibold tracking-tight">额度充值</h1>
-      <p className="mt-2 text-sm text-ink-2">余额按调用实际用量扣减。首次进入会自动获得 ¥1 体验额度。</p>
+      <PageHeader
+        icon="wallet"
+        eyebrow="控制台"
+        title="额度充值"
+        description="余额按调用实际用量扣减。首次进入会自动获得 ¥1 体验额度。"
+      />
 
       <div className="mt-6 flex items-center justify-between gap-6 rounded-xl border border-line bg-bg p-6">
         <div>

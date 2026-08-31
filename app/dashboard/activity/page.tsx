@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 
-import { Badge } from "@zmzai/theme";
+import { Badge, PageHeader } from "@zmzai/theme";
 import { RelayShell } from "@/components/relay-shell";
 import { Pagination } from "@/components/pagination";
 import { getCurrentUser } from "@/providers/auth/session";
@@ -45,8 +45,12 @@ export default async function ActivityPage({
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   return (
     <RelayShell role="user" userName={user.name} isAdminUser={user.role === "admin"}>
-      <h1 className="font-serif text-2xl font-semibold tracking-tight">用量</h1>
-      <p className="mt-2 text-sm text-ink-2">调用记录与费用，按时间倒序分页展示。</p>
+      <PageHeader
+        icon="activity"
+        eyebrow="控制台"
+        title="用量"
+        description="调用记录与费用，按时间倒序分页展示。"
+      />
       <div className="mt-6">
         {usages.length ? (
           <div className="space-y-3">

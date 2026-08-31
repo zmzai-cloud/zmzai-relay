@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Badge } from "@zmzai/theme";
+import { Badge, PageHeader } from "@zmzai/theme";
 import { RelayShell } from "@/components/relay-shell";
 import { getCurrentUser } from "@/providers/auth/session";
 import { connectMongo } from "@/providers/database/mongodb/connection";
@@ -25,8 +25,12 @@ export default async function ModelsPage() {
   );
   return (
     <RelayShell role="admin" userName={user.name}>
-      <h1 className="font-serif text-2xl font-semibold tracking-tight">模型与价格</h1>
-      <p className="mt-2 text-sm text-ink-2">价格与推理强度在这里管理；上游映射在「渠道与路由」维护。</p>
+      <PageHeader
+        icon="coins"
+        eyebrow="管理后台"
+        title="模型与价格"
+        description="价格与推理强度在这里管理；上游映射在「渠道与路由」维护。"
+      />
 
       <h2 className="mt-8 text-lg font-semibold">渠道</h2>
       <div className="mt-3 overflow-x-auto rounded-lg border border-line">

@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { PageHeader } from "@zmzai/theme";
 
 import { RelayShell } from "@/components/relay-shell";
 import { getCurrentUser } from "@/providers/auth/session";
@@ -20,8 +21,12 @@ export default async function OrdersPage() {
   const userMap = new Map(users.map((item) => [String(item._id), { name: item.name, email: item.email }]));
   return (
     <RelayShell role="admin" userName={user.name}>
-      <h1 className="font-serif text-2xl font-semibold tracking-tight">充值订单</h1>
-      <p className="mt-2 text-sm text-ink-2">确认收款后，系统会把对应额度加入用户钱包，并写入充值流水。</p>
+      <PageHeader
+        icon="list"
+        eyebrow="管理后台"
+        title="充值订单"
+        description="确认收款后，系统会把对应额度加入用户钱包，并写入充值流水。"
+      />
       <div className="mt-8"><OrderAdminPanel initialOrders={orders.map((order) => ({ ...order, _id: String(order._id), expiresAt: order.expiresAt.toISOString(), submittedAt: order.submittedAt?.toISOString() ?? null, user: userMap.get(String(order.userId)) ?? null }))} /></div>
     </RelayShell>
   );

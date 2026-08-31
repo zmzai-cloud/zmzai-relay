@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { Badge } from "@zmzai/theme";
+import { Badge, PageHeader } from "@zmzai/theme";
 import { RelayShell } from "@/components/relay-shell";
 import { getCurrentUser } from "@/providers/auth/session";
 import { connectMongo } from "@/providers/database/mongodb/connection";
@@ -54,8 +54,12 @@ export default async function DashboardPage() {
   ];
   return (
     <RelayShell role="user" userName={user.name} isAdminUser={user.role === "admin"}>
-      <h1 className="font-serif text-2xl font-semibold tracking-tight">概览</h1>
-      <p className="mt-2 text-sm text-ink-2">余额、消费与最近调用。</p>
+      <PageHeader
+        icon="home"
+        eyebrow="控制台"
+        title="概览"
+        description="余额、消费与最近调用。"
+      />
 
       {availableMicros === 0 ? (
         <div className="mt-5 flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 p-4">

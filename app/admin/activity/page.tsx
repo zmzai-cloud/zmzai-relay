@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Badge } from "@zmzai/theme";
+import { Badge, PageHeader } from "@zmzai/theme";
 import { RelayShell } from "@/components/relay-shell";
 import { getCurrentUser } from "@/providers/auth/session";
 import { connectMongo } from "@/providers/database/mongodb/connection";
@@ -67,8 +67,16 @@ export default async function ActivityPage() {
   }
   return (
     <RelayShell role="admin" userName={user.name}>
-      <h1 className="font-serif text-2xl font-semibold tracking-tight">调用与账本</h1>
-      <p className="mt-2 text-sm text-ink-2">全站最近的调用、渠道尝试与余额流水。待核查上游成本：{uncertain} 笔。</p>
+      <PageHeader
+        icon="activity"
+        eyebrow="管理后台"
+        title="调用与账本"
+        description={
+          <>
+            全站最近的调用、渠道尝试与余额流水。待核查上游成本：{uncertain} 笔。
+          </>
+        }
+      />
       {uncertain > 0 ? (
         <div className="mt-4 rounded-lg border border-line">
           <div className="border-b border-line bg-surface px-4 py-2.5">

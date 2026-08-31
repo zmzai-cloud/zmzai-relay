@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { PageHeader } from "@zmzai/theme";
 
 import { RelayShell } from "@/components/relay-shell";
 import { getCurrentUser } from "@/providers/auth/session";
@@ -38,10 +39,16 @@ export default async function AdminKeysPage() {
 
   return (
     <RelayShell role="admin" userName={user.name}>
-      <h1 className="font-serif text-2xl font-semibold tracking-tight">全部 Token</h1>
-      <p className="mt-2 max-w-2xl text-sm text-ink-2">
-        给调用方分发独立 key，调用方使用 <code className="font-mono text-accent">Authorization: Bearer zrk_...</code> 调用。明文 key 只在创建时显示一次。
-      </p>
+      <PageHeader
+        icon="key"
+        eyebrow="管理后台"
+        title="全部 Token"
+        description={
+          <>
+            给调用方分发独立 key，调用方使用 <code className="font-mono text-accent">Authorization: Bearer zrk_...</code> 调用。明文 key 只在创建时显示一次。
+          </>
+        }
+      />
       <div className="mt-8"><KeyAdminPanel initialKeys={safe} /></div>
     </RelayShell>
   );

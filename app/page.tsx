@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Button, Terminal } from "@zmzai/theme";
+import { Button, PageHeader, Terminal } from "@zmzai/theme";
 import { ModelTable } from "@/components/model-table";
 import { PublicShell } from "@/components/public-shell";
 import { getPublicChannels } from "@/providers/catalog/public-models";
@@ -22,25 +22,28 @@ export default async function HomePage() {
   const totalModels = channels.reduce((sum, ch) => sum + ch.models.length, 0);
   return (
     <PublicShell user={user ? { name: user.name } : null} isAdminUser={user?.role === "admin"}>
-      <section className="max-w-2xl">
-        <p className="font-mono text-xs tracking-wide text-muted">{totalModels} 个模型 · {channels.length} 条上游渠道 · OpenAI 兼容</p>
-        <h1 className="mt-4 font-serif text-4xl font-bold leading-tight tracking-tight">一个入口，调用所有上游模型</h1>
-        <p className="mt-4 text-lg leading-8 text-ink-2">
-          Relay 提供 OpenAI 兼容的统一 API：按模型自动路由到上游渠道，价格公开、按 token 计费、缓存命中享折扣。
-        </p>
-        <div className="mt-7 flex flex-wrap items-center gap-4">
-          {user ? (
-            <Link href={user.role === "admin" ? "/admin" : "/dashboard"}>
-              <Button>进入控制台</Button>
-            </Link>
-          ) : (
-            <Link href={`${AUTH_URL}/login?next=${encodeURIComponent("https://m.zmzai.cloud/dashboard")}`}>
-              <Button>登录开始使用</Button>
-            </Link>
-          )}
-          <Link href="/models" className="text-sm text-accent underline underline-offset-4">查看模型与价格</Link>
-        </div>
-      </section>
+      <PageHeader
+        variant="hero"
+        icon="bolt"
+        className="max-w-2xl"
+        eyebrow={`${totalModels} 个模型 · ${channels.length} 条上游渠道 · OpenAI 兼容`}
+        title="一个入口，调用所有上游模型"
+        description="Relay 提供 OpenAI 兼容的统一 API：按模型自动路由到上游渠道，价格公开、按 token 计费、缓存命中享折扣。"
+        actions={
+          <>
+            {user ? (
+              <Link href={user.role === "admin" ? "/admin" : "/dashboard"}>
+                <Button>进入控制台</Button>
+              </Link>
+            ) : (
+              <Link href={`${AUTH_URL}/login?next=${encodeURIComponent("https://m.zmzai.cloud/dashboard")}`}>
+                <Button>登录开始使用</Button>
+              </Link>
+            )}
+            <Link href="/models" className="text-sm text-accent underline underline-offset-4">查看模型与价格</Link>
+          </>
+        }
+      />
 
       <section className="mt-14">
         <div className="mb-4 flex items-baseline justify-between">

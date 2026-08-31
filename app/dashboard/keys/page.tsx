@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { PageHeader } from "@zmzai/theme";
 import { RelayShell } from "@/components/relay-shell";
 import { getCurrentUser } from "@/providers/auth/session";
 import { connectMongo } from "@/providers/database/mongodb/connection";
@@ -16,8 +17,12 @@ export default async function KeysPage() {
   const [keys, models] = await Promise.all([ApiKeyModel.find({ userId: user.id }).sort({ createdAt: -1 }).lean(), ModelPriceModel.find({ enabled: true }).sort({ model: 1 }).lean()]);
   return (
     <RelayShell role="user" userName={user.name} isAdminUser={user.role === "admin"}>
-      <h1 className="font-serif text-2xl font-semibold tracking-tight">API Keys</h1>
-      <p className="mt-2 text-sm text-ink-2">创建和管理调用凭证，Key 可随时吊销，可为每个 Key 设置模型范围与消费上限。</p>
+      <PageHeader
+        icon="key"
+        eyebrow="控制台"
+        title="API Keys"
+        description="创建和管理调用凭证，Key 可随时吊销，可为每个 Key 设置模型范围与消费上限。"
+      />
       <div className="mt-6">
         <TokenPanel
           initialKeys={keys.map((key) => ({ _id: String(key._id), prefix: key.prefix, name: key.name, status: key.status, rateLimitPerMinute: key.rateLimitPerMinute, monthlySpendLimitMicros: key.monthlySpendLimitMicros, monthlySpendUsedMicros: key.monthlySpendUsedMicros, lastUsedAt: key.lastUsedAt?.toISOString() ?? null }))}

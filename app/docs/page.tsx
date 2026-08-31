@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Terminal } from "@zmzai/theme";
+import { PageHeader, Terminal } from "@zmzai/theme";
 import { PublicShell } from "@/components/public-shell";
 import { connectMongo } from "@/providers/database/mongodb/connection";
 import { getCurrentUser } from "@/providers/auth/session";
@@ -16,10 +16,16 @@ export default async function PublicDocsPage() {
   return (
     <PublicShell user={user} isAdminUser={user?.role === "admin"}>
       <div className="max-w-3xl">
-        <h1 className="font-serif text-3xl font-semibold tracking-tight">API 文档</h1>
-        <p className="mt-2 text-sm leading-6 text-ink-2">
-          Relay 兼容 OpenAI Chat Completions 协议：把 baseURL 指向 <code className="font-mono text-xs">https://m.zmzai.cloud/v1</code>，用 API Key 鉴权即可。zcode、codex 等第三方工具直接使用此地址。模型与价格见 <Link href="/models" className="text-accent underline underline-offset-4">模型列表</Link>。
-        </p>
+        <PageHeader
+          icon="book"
+          eyebrow="接口参考"
+          title="API 文档"
+          description={
+            <>
+              Relay 兼容 OpenAI Chat Completions 协议：把 baseURL 指向 <code className="font-mono text-xs">https://m.zmzai.cloud/v1</code>，用 API Key 鉴权即可。zcode、codex 等第三方工具直接使用此地址。模型与价格见 <Link href="/models" className="text-accent underline underline-offset-4">模型列表</Link>。
+            </>
+          }
+        />
 
         <h2 className="mt-10 text-lg font-semibold">1. 鉴权</h2>
         <p className="mt-2 text-sm leading-6 text-ink-2">

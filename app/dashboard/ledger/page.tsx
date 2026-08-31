@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { PageHeader } from "@zmzai/theme";
 
 import { RelayShell } from "@/components/relay-shell";
 import { Pagination } from "@/components/pagination";
@@ -39,8 +40,12 @@ export default async function LedgerPage({
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   return (
     <RelayShell role="user" userName={user.name} isAdminUser={user.role === "admin"}>
-      <h1 className="font-serif text-2xl font-semibold tracking-tight">账单</h1>
-      <p className="mt-2 text-sm text-ink-2">余额变动明细，按时间倒序分页展示。</p>
+      <PageHeader
+        icon="receipt"
+        eyebrow="控制台"
+        title="账单"
+        description="余额变动明细，按时间倒序分页展示。"
+      />
       <div className="mt-6">
         {ledger.length ? (
           <div className="space-y-3">

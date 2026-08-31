@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Badge } from "@zmzai/theme";
+import { Badge, PageHeader } from "@zmzai/theme";
 import { RelayShell } from "@/components/relay-shell";
 import { getCurrentUser } from "@/providers/auth/session";
 import { connectMongo } from "@/providers/database/mongodb/connection";
@@ -19,8 +19,12 @@ export default async function UsersPage() {
   const [users, accounts, keys] = await Promise.all([UserModel.find().sort({ createdAt: -1 }).lean(), BalanceAccountModel.find().lean(), ApiKeyModel.find().lean()]);
   return (
     <RelayShell role="admin" userName={user.name}>
-      <h1 className="font-serif text-2xl font-semibold tracking-tight">用户与余额</h1>
-      <p className="mt-2 text-sm text-ink-2">全部账号的余额与 API Key 情况。调整余额请到「运营调整」。</p>
+      <PageHeader
+        icon="users"
+        eyebrow="管理后台"
+        title="用户与余额"
+        description="全部账号的余额与 API Key 情况。调整余额请到「运营调整」。"
+      />
       <div className="mt-6 overflow-x-auto rounded-lg border border-line">
         <table className="w-full min-w-[36rem] border-collapse text-sm">
           <thead>
