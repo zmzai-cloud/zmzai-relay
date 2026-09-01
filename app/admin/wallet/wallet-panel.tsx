@@ -1,19 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Badge, Button, Card, Input } from "@zmzai/theme";
+import { useCallback, useRef, useState } from "react";
+import { Button, Card, Input } from "@zmzai/theme";
 import { cnyMicrosLabel, cnyYuanToMicros, microsToCnyYuan } from "@/providers/billing/currency";
+import { UserPicker, type UserPickerHandle, type WalletTarget } from "@/components/user-picker";
 
-export interface WalletTarget {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  balanceMicros: number;
-  availableMicros: number;
-}
-
-const QUICK_AMOUNTS = [100, 500];
+const QUICK_AMOUNTS = [20, 100, 500];
 
 /**
  * 额度管理面板 —— 管理员自助划拨/补充额度。
@@ -28,9 +20,7 @@ export function WalletPanel({ poolBalanceMicros, poolReservedMicros, me }: {
   const [pool, setPool] = useState({ balanceMicros: poolBalanceMicros, reservedMicros: poolReservedMicros });
   const [mode, setMode] = useState<"transfer" | "credit">("transfer");
   const [target, setTarget] = useState<WalletTarget | null>(null);
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<WalletTarget[]>([]);
-  const [searching, setSearching] = useState(false);
+  const pickerRef = useRef<UserPickerHandle>(null);
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -48,25 +38,16 @@ export function WalletPanel({ poolBalanceMicros, poolReservedMicros, me }: {
     }
   }, []);
 
-  // 输入 debounce 搜索（≥2 字符）
-  useEffect(() => {
-    const keyword = query.trim();
-    if (keyword.length < 2) { setResults([]); return; }
-    setSearching(true);
-    const timer = setTimeout(() => {
-      fetch(`/api/admin/users/search?q=${encodeURIComponent(keyword)}`)
-        .then((res) => (res.ok ? res.json() : { users: [] }))
-        .then((data) => setResults(data.users ?? []))
-        .catch(() => setResults([]))
-        .finally(() => setSearching(false));
-    }, 250);
-    return () => clearTimeout(timer);
-  }, [query]);
-
   function pickSelf() {
-    setTarget({ id: me.id, name: me.name, email: me.email, role: "admin", balanceMicros: pool.balanceMicros, availableMicros });
-    setQuery(me.email);
-    setResults([]);
+    pickerRef.current?.fill({
+      id: me.id,
+      name: me.name,
+      email: me.email,
+      role: "admin",
+      accounts: [],
+      balanceMicros: pool.balanceMicros,
+      availableMicros,
+    });
   }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -160,41 +141,11 @@ export function WalletPanel({ poolBalanceMicros, poolReservedMicros, me }: {
 
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center gap-2">
-            <Input
-              value={query}
-              onChange={(event) => { setQuery(event.target.value); setTarget(null); }}
-              placeholder="按邮箱或姓名搜索目标用户（至少 2 个字符）"
-              className="font-mono text-sm"
-            />
+            <UserPicker ref={pickerRef} value={target} onChange={setTarget} className="flex-1" />
             <Button type="button" variant="secondary" size="sm" className="shrink-0" onClick={pickSelf}>
               补给我自己
             </Button>
           </div>
-          {searching ? <p className="text-xs text-muted">搜索中…</p> : null}
-          {!searching && results.length > 0 ? (
-            <ul className="divide-y divide-line overflow-hidden rounded-md border border-line">
-              {results.map((user) => (
-                <li key={user.id}>
-                  <button
-                    type="button"
-                    onClick={() => { setTarget(user); setQuery(user.email); setResults([]); }}
-                    className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-surface"
-                  >
-                    <span>
-                      <span className="font-medium">{user.name}</span>
-                      <span className="ml-2 font-mono text-xs text-muted">{user.email}</span>
-                    </span>
-                    <Badge variant="outline" size="sm" className="font-mono">{cnyMicrosLabel(user.availableMicros, 2)}</Badge>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          {target ? (
-            <p className="text-xs text-muted">
-              已选择：<span className="font-mono">{target.email}</span> · 当前余额 {cnyMicrosLabel(target.availableMicros, 2)}
-            </p>
-          ) : null}
         </div>
 
         <div className="flex flex-col gap-1.5">
