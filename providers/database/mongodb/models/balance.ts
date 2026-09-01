@@ -19,7 +19,8 @@ const accountSchema = new Schema<BalanceAccountRecord>({
 export const BalanceAccountModel =
   (models.BalanceAccount as Model<BalanceAccountRecord> | undefined) ?? model<BalanceAccountRecord>("BalanceAccount", accountSchema);
 
-export const ledgerKinds = ["admin_credit", "admin_debit", "purchase_credit", "welcome_credit", "usage_charge", "refund"] as const;
+// transfer_out/transfer_in 成对出现：资金池划拨时源账户记 out（负）、目标账户记 in（正）
+export const ledgerKinds = ["admin_credit", "admin_debit", "purchase_credit", "welcome_credit", "usage_charge", "refund", "transfer_out", "transfer_in"] as const;
 export interface BalanceLedgerRecord {
   userId: Types.ObjectId;
   kind: (typeof ledgerKinds)[number];

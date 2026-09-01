@@ -37,6 +37,7 @@ const adminSection: AppNavSection = {
     { label: "模型与价格", href: "/admin/models", icon: "coins", keywords: "prices models" },
     { label: "渠道与路由", href: "/admin/channels", icon: "link", keywords: "channels routing" },
     { label: "用户与余额", href: "/admin/users", icon: "users", keywords: "users balance" },
+    { label: "额度管理", href: "/admin/wallet", icon: "wallet", keywords: "wallet credit transfer topup 划拨" },
     { label: "毛利报表", href: "/admin/profit", icon: "trend-up", keywords: "profit margin" },
     { label: "充值订单", href: "/admin/orders", icon: "receipt", keywords: "orders topup" },
     { label: "调用与账本", href: "/admin/activity", icon: "activity", keywords: "usage ledger" },
