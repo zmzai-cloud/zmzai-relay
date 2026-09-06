@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Badge, Button, Input } from "@zmzai/theme";
 import { cnyMicrosLabel, cnyYuanToMicros, microsToCnyYuan } from "@/providers/billing/currency";
 import { OFFICIAL_PRICES } from "@/providers/catalog/official-prices";
@@ -79,9 +79,17 @@ export function ChannelAdminPanel({ initialChannels }: { initialChannels: Channe
   const [testResult, setTestResult] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const formRef = useRef<HTMLDivElement>(null);
   const editing = channels.find((channel) => channel._id === editingId) ?? null;
 
-  function beginEdit(channel: Channel) { setEditingId(channel._id); setForm(formForChannel(channel)); setError(null); setNotice(null); }
+  function beginEdit(channel: Channel) {
+    setEditingId(channel._id); setForm(formForChannel(channel)); setError(null); setNotice(null);
+    // 编辑表单在渠道表下方，视口外时点击「编辑」看起来毫无反应——滚动过去并聚焦名称框
+    requestAnimationFrame(() => {
+      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      formRef.current?.querySelector<HTMLInputElement>("input")?.focus({ preventScroll: true });
+    });
+  }
   function cancelEdit() { setEditingId(null); setForm(emptyForm()); setError(null); setNotice(null); }
   async function save(event: React.FormEvent) {
     event.preventDefault(); setBusy(true); setError(null); setNotice(null);
@@ -166,7 +174,7 @@ export function ChannelAdminPanel({ initialChannels }: { initialChannels: Channe
                       })()}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <Button type="button" variant="ghost" size="sm" onClick={() => beginEdit(channel)}>编辑</Button>
+                      <Button type="button" variant={editingId === channel._id ? "secondary" : "ghost"} size="sm" onClick={() => beginEdit(channel)}>{editingId === channel._id ? "编辑中" : "编辑"}</Button>
                       <Button type="button" variant="ghost" size="sm" onClick={() => testChannel(channel._id)}>测试</Button>
                     </td>
                   </tr>
@@ -179,7 +187,7 @@ export function ChannelAdminPanel({ initialChannels }: { initialChannels: Channe
         )}
       </div>
 
-      <div className="max-w-2xl rounded-lg border border-line bg-bg p-5">
+      <div ref={formRef} className="max-w-2xl scroll-mt-6 rounded-lg border border-line bg-bg p-5">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold">{editing ? `编辑 ${editing.name}` : "添加渠道"}</h2>
           {editing ? <Button type="button" variant="ghost" size="sm" onClick={cancelEdit}>取消</Button> : null}
