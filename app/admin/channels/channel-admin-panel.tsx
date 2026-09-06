@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Badge, Button, Input } from "@zmzai/theme";
 import { cnyMicrosLabel, cnyYuanToMicros, microsToCnyYuan } from "@/providers/billing/currency";
 import { OFFICIAL_PRICES } from "@/providers/catalog/official-prices";
@@ -79,8 +79,16 @@ export function ChannelAdminPanel({ initialChannels }: { initialChannels: Channe
   const [testResult, setTestResult] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [flashId, setFlashId] = useState<string | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
   const editing = channels.find((channel) => channel._id === editingId) ?? null;
+
+  // 提示条自动退场，避免长期占据版面
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), 4000);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
   function beginEdit(channel: Channel) {
     setEditingId(channel._id); setForm(formForChannel(channel)); setError(null); setNotice(null);
@@ -101,7 +109,15 @@ export function ChannelAdminPanel({ initialChannels }: { initialChannels: Channe
     const json = await response.json().catch(() => ({})); setBusy(false);
     if (!response.ok) { setError(json.error ?? "保存失败"); return; }
     setChannels((previous) => (editingId ? previous.map((channel) => channel._id === editingId ? json.channel : channel) : [...previous, json.channel]).sort((a, b) => a.priority - b.priority));
-    cancelEdit();
+    // 保存成功后必须留下可见反馈：此前直接 cancelEdit() 会连提示一起清掉，
+    // 用户点完「保存修改」看不出到底成没成功。
+    const savedId: string = json.channel?._id ?? editingId ?? "";
+    const savedName = form.name;
+    const wasEditing = Boolean(editingId);
+    setEditingId(null); setForm(emptyForm()); setError(null);
+    setNotice(wasEditing ? `已保存「${savedName}」的修改` : `已新增渠道「${savedName}」`);
+    setFlashId(savedId);
+    setTimeout(() => setFlashId((current) => (current === savedId ? null : current)), 2400);
   }
   async function testChannel(id: string) {
     setTestResult((previous) => ({ ...previous, [id]: "测试中..." }));
@@ -149,7 +165,7 @@ export function ChannelAdminPanel({ initialChannels }: { initialChannels: Channe
               </thead>
               <tbody className="divide-y divide-line">
                 {channels.map((channel) => (
-                  <tr key={channel._id} className="align-top transition-colors hover:bg-surface">
+                  <tr key={channel._id} className={`align-top transition-colors ${editingId === channel._id || flashId === channel._id ? "bg-surface" : "hover:bg-surface"}`}>
                     <td className="px-4 py-3">
                       <p className="font-medium">{channel.name}</p>
                       <p className="break-all font-mono text-xs text-muted">{channel.baseUrl}</p>
@@ -190,8 +206,15 @@ export function ChannelAdminPanel({ initialChannels }: { initialChannels: Channe
       <div ref={formRef} className="max-w-2xl scroll-mt-6 rounded-lg border border-line bg-bg p-5">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold">{editing ? `编辑 ${editing.name}` : "添加渠道"}</h2>
-          {editing ? <Button type="button" variant="ghost" size="sm" onClick={cancelEdit}>取消</Button> : null}
+          {editing ? <Button type="button" variant="ghost" size="sm" onClick={cancelEdit}>取消编辑</Button> : null}
         </div>
+        {notice ? (
+          <div className="mt-3 flex items-center gap-2 rounded-md bg-surface px-3 py-2 text-xs" role="status">
+            <Badge variant="success" size="sm">成功</Badge>
+            <span>{notice}</span>
+          </div>
+        ) : null}
+        {editing ? <p className="mt-2 text-xs text-muted">改完点「保存修改」生效；放弃改动点右上「取消编辑」。</p> : null}
         <form onSubmit={save} className="mt-4 flex flex-col gap-3">
           <label className="flex flex-col gap-1.5"><span className="text-xs text-muted">名称</span><Input required value={form.name} onChange={(event) => update("name", event.target.value)} /></label>
           <label className="flex flex-col gap-1.5"><span className="text-xs text-muted">Base URL</span><Input required type="url" value={form.baseUrl} onChange={(event) => update("baseUrl", event.target.value)} className="font-mono text-xs" placeholder="https://api.example.com/v1" /></label>
@@ -218,7 +241,6 @@ export function ChannelAdminPanel({ initialChannels }: { initialChannels: Channe
             <Button type="button" variant="secondary" onClick={applyCostMultiplier} className="self-end">按倍率填充成本</Button>
           </div>
           {error ? <p className="text-sm text-danger">{error}</p> : null}
-          {notice ? <p className="text-sm text-accent">{notice}</p> : null}
           <Button disabled={busy} className="self-start">{busy ? "保存中..." : editing ? "保存修改" : "添加渠道"}</Button>
         </form>
       </div>

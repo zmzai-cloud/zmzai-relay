@@ -15,6 +15,7 @@ export interface OfficialPrice {
 }
 
 export const OFFICIAL_PRICES: Record<string, OfficialPrice> = {
+  "gpt-6-astra": { inputCnyPer1M: 67.5, outputCnyPer1M: 337.5, cacheReadCnyPer1M: 6.75, cacheWriteCnyPer1M: 84.375, maxInputTokens: 1_050_000, maxOutputTokens: 128_000, note: "$10/$50 · 缓存读 $1/写 $12.5 · 输入 >272K 后输入与缓存价翻倍" },
   "gpt-5.6-sol": { inputCnyPer1M: 27, outputCnyPer1M: 135, cacheReadCnyPer1M: 2.7, cacheWriteCnyPer1M: 33.75, maxInputTokens: 1_050_000, maxOutputTokens: 128_000, note: "$4/$20 促销至 11/21 · 缓存读 $0.4/写 $5" },
   "gpt-5.6-terra": { inputCnyPer1M: 13.5, outputCnyPer1M: 81, maxInputTokens: 1_000_000, maxOutputTokens: 128_000, note: "$2/$12" },
   "gpt-5.6-luna": { inputCnyPer1M: 1.35, outputCnyPer1M: 8.1, maxInputTokens: 1_000_000, maxOutputTokens: 128_000, note: "$0.2/$1.2" },
