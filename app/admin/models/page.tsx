@@ -75,6 +75,7 @@ export default async function ModelsPage() {
           featured: m.featured,
           featuredDescription: m.featuredDescription,
           enabled: m.enabled,
+          publicVisible: m.publicVisible !== false,
         }))} />
       </div>
 

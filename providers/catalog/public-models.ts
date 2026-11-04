@@ -12,7 +12,7 @@ import { type PublicChannel, type PublicChannelModel, type PublicModel, moneyMic
 export async function getPublicModels(): Promise<PublicModel[]> {
   const now = new Date();
   const [prices, channels] = await Promise.all([
-    ModelPriceModel.find({ enabled: true }).sort({ model: 1 }).lean(),
+    ModelPriceModel.find({ enabled: true, publicVisible: { $ne: false } }).sort({ model: 1 }).lean(),
     ChannelModel.find({ enabled: true, $or: [{ cooldownUntil: null }, { cooldownUntil: { $lte: now } }] }).select("models").lean(),
   ]);
   const routable = new Set(channels.flatMap((channel) => channel.models.map((mapping) => mapping.public)));
@@ -34,7 +34,7 @@ export async function getPublicModels(): Promise<PublicModel[]> {
 export async function getPublicChannels(): Promise<PublicChannel[]> {
   const now = new Date();
   const [prices, channels] = await Promise.all([
-    ModelPriceModel.find({ enabled: true }).lean(),
+    ModelPriceModel.find({ enabled: true, publicVisible: { $ne: false } }).lean(),
     ChannelModel.find({ enabled: true, $or: [{ cooldownUntil: null }, { cooldownUntil: { $lte: now } }] }).sort({ priority: 1 }).lean(),
   ]);
   const priceMap = new Map(prices.map((p) => [p.model, p]));

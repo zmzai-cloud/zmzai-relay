@@ -26,6 +26,7 @@ export interface ModelPriceRecord {
   featured: boolean;
   featuredDescription: string;
   enabled: boolean;
+  publicVisible: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -43,6 +44,7 @@ const schema = new Schema<ModelPriceRecord>({
   featured: { type: Boolean, required: true, default: false },
   featuredDescription: { type: String, required: true, default: "", maxlength: 200 },
   enabled: { type: Boolean, required: true, default: true },
+  publicVisible: { type: Boolean, required: true, default: true },
 }, { strict: "throw", timestamps: true });
 
 export const ModelPriceModel =
