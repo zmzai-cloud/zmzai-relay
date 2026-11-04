@@ -4,7 +4,8 @@ vi.mock("@/providers/auth/session",()=>({AdminRequiredError:class extends Error{
 import {GET,POST} from "@/app/api/admin/onboarding/route";
 import {GET as read,PATCH} from "@/app/api/admin/onboarding/[id]/route";
 import {POST as publish} from "@/app/api/admin/onboarding/[id]/publish/route";
+import {GET as review,POST as rebase} from "@/app/api/admin/onboarding/[id]/rebase/route";
 import {POST as test} from "@/app/api/admin/onboarding/[id]/test/route";
 const request=()=>new NextRequest("http://localhost/api/admin/onboarding",{method:"POST",body:"{}"});
 const params={params:Promise.resolve({id:"aaaaaaaaaaaaaaaaaaaaaaaa"})};
-it("rejects non-admin users on all draft operations",async()=>{for(const result of await Promise.all([GET(),POST(request()),read(request(),params),PATCH(request(),params),publish(request(),params),test(request(),params)]))expect(result.status).toBe(403)});
+it("rejects non-admin users on all draft operations",async()=>{for(const result of await Promise.all([GET(),POST(request()),read(request(),params),PATCH(request(),params),publish(request(),params),test(request(),params),review(request(),params),rebase(request(),params)]))expect(result.status).toBe(403)});

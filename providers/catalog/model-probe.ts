@@ -12,7 +12,7 @@ export async function probeModel(input:ProbeInput):Promise<ProbeResult> {
   try {
     const res=await safeUpstreamFetch(`${input.baseUrl.replace(/\/$/,"")}/chat/completions`,{method:"POST",headers:{Authorization:`Bearer ${input.apiKey}`,"Content-Type":"application/json"},body:JSON.stringify({model:input.upstreamModel,messages:[{role:"user",content:"Reply OK"}],max_tokens:64,stream:false}),connectTimeoutMs:20000,signal:AbortSignal.timeout(30000)});
     status=res.status;
-    if (res.ok) { const data=await res.json().catch(()=>null); ok=Array.isArray(data?.choices)&&data.choices.length>0; if(!ok) category="other"; }
+    if (res.ok) { const data=await res.json().catch(()=>null); ok=Array.isArray(data?.choices)&&data.choices.some((choice:{message?:{role?:unknown;content?:unknown}}|null)=>choice?.message?.role==="assistant"&&typeof choice.message.content==="string"&&choice.message.content.trim().length>0); if(!ok) category="other"; }
     else category=status===401||status===403?"auth":status===402?"balance":status===429?"rate_limit":status>=500?"upstream":"other";
   } catch(e) { category=e instanceof Error && /timeout|timed out|abort/i.test(e.message)?"timeout":"other"; }
   return {ok,category,status,latencyMs:Date.now()-start,testedAt:new Date()};

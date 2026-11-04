@@ -9,8 +9,9 @@ describe("model probing", () => {
     const result = await probeModel(input); expect(result.ok).toBe(false); expect(result.category).toBe(category); expect(JSON.stringify(result)).not.toContain("secret-value");
   });
   it("reports success only when the response has choices", async () => {
-    upstream.fetch.mockResolvedValueOnce(Response.json({choices:[{message:{content:"ok"}}]})); expect((await probeModel(input)).ok).toBe(true);
+    upstream.fetch.mockResolvedValueOnce(Response.json({choices:[{message:{role:"assistant",content:"ok"}}]})); expect((await probeModel(input)).ok).toBe(true);
     upstream.fetch.mockResolvedValueOnce(Response.json({})); expect((await probeModel(input)).ok).toBe(false);
+    upstream.fetch.mockResolvedValueOnce(Response.json({choices:[null,{}]})); expect((await probeModel(input)).ok).toBe(false);
   });
   it("classifies timeouts", async () => { upstream.fetch.mockRejectedValueOnce(new Error("UPSTREAM_CONNECT_TIMEOUT")); expect((await probeModel(input)).category).toBe("timeout"); });
   it("invalidates fingerprints for changes to address, key, and mappings", () => {

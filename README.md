@@ -44,7 +44,10 @@ pnpm dev
 
 ```bash
 pnpm typecheck
+pnpm test
 ```
+
+集成测试需要本机 PATH 中有 `mongod`；测试会启动临时的本地副本集，并在结束时清理测试数据。
 
 初始化模型目录：
 
