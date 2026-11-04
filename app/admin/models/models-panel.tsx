@@ -20,6 +20,7 @@ export interface ModelPriceRow {
   featured: boolean;
   featuredDescription: string;
   enabled: boolean;
+  publicVisible: boolean;
 }
 
 export function ModelsPanel({ initialPrices }: { initialPrices: ModelPriceRow[] }) {
@@ -57,6 +58,7 @@ export function ModelsPanel({ initialPrices }: { initialPrices: ModelPriceRow[] 
     setValue("featured", row.featured);
     setValue("featuredDescription", row.featuredDescription);
     setValue("enabled", row.enabled);
+    setValue("publicVisible", row.publicVisible !== false);
     for (const effort of REASONING_EFFORTS) setValue(`effort-${effort}`, row.allowedReasoningEfforts.includes(effort));
   }
 
@@ -119,6 +121,7 @@ export function ModelsPanel({ initialPrices }: { initialPrices: ModelPriceRow[] 
       featured: form.get("featured") === "on",
       featuredDescription: String(form.get("featuredDescription") || ""),
       enabled: form.get("enabled") === "on",
+      publicVisible: form.get("publicVisible") === "on",
       reason: String(form.get("reason") || ""),
     };
     if (!body.model) { setError("模型名不能为空"); setMessage(null); return; }
@@ -146,6 +149,7 @@ export function ModelsPanel({ initialPrices }: { initialPrices: ModelPriceRow[] 
       featured: row.featured,
       featuredDescription: row.featuredDescription,
       enabled: !row.enabled,
+      publicVisible: row.publicVisible !== false,
       reason: `管理后台${row.enabled ? "停用" : "启用"}模型`,
     }) });
     if (!res.ok) { setError("操作失败"); setMessage(null); return; }
@@ -191,6 +195,7 @@ export function ModelsPanel({ initialPrices }: { initialPrices: ModelPriceRow[] 
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="featured" className="" /> 设为推荐模型</label>
         <Input name="featuredDescription" className="" placeholder="推荐描述，例如：速度、质量和成本表现均衡的模型" />
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="enabled" defaultChecked className="" /> 开放调用</label>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="publicVisible" defaultChecked className="" /> 公开展示</label>
         <Input name="reason" required className="" placeholder="操作原因（写入审计日志）" />
         {error ? <p className="text-sm text-danger">{error}</p> : null}
         {message ? <p className="font-mono text-sm text-accent">{message}</p> : null}
@@ -218,7 +223,7 @@ export function ModelsPanel({ initialPrices }: { initialPrices: ModelPriceRow[] 
                   {row.model}
                   {row.featured ? <span className="ml-2"><Badge variant="accent" size="sm">推荐</Badge></span> : null}
                 </td>
-                <td className="px-4 py-3"><Badge variant={row.enabled ? "success" : "outline"} size="sm">{row.enabled ? "已开放" : "已停用"}</Badge></td>
+                <td className="px-4 py-3"><Badge variant={row.enabled ? "success" : "outline"} size="sm">{row.enabled ? "已开放" : "已停用"}</Badge> <span className="text-xs text-muted">{row.publicVisible === false ? "已隐藏" : "公开"}</span></td>
                 <td className="px-4 py-3 text-right font-mono text-xs">{cnyMicrosLabel(row.inputPricePer1kMicros * 1000)}</td>
                 <td className="px-4 py-3 text-right font-mono text-xs">{cnyMicrosLabel(row.outputPricePer1kMicros * 1000)}</td>
                 <td className="px-4 py-3 text-right font-mono text-xs text-muted">×{row.multiplier ?? 1}</td>

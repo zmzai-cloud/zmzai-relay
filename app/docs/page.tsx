@@ -38,7 +38,7 @@ export default async function PublicDocsPage() {
             <span>{`curl ${BASE} \\
   -H "Authorization: Bearer <YOUR_API_KEY>" \\
   -H "Content-Type: application/json" \\
-  -d '{"model":"deepseek-v4-flash","messages":[{"role":"user","content":"你好"}]}'`}</span>
+  -d '{"model":"YOUR_MODEL_ID","messages":[{"role":"user","content":"你好"}]}'`}</span>
           </Terminal>
         </div>
 
