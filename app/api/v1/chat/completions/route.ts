@@ -17,6 +17,7 @@ import { ModelPriceModel, reasoningEfforts } from "@/providers/database/mongodb/
 import { RateLimitBucketModel } from "@/providers/database/mongodb/models/rate-limit";
 import { UsageModel } from "@/providers/database/mongodb/models/usage";
 import { safeUpstreamFetch } from "@/providers/network/safe-upstream-fetch";
+import { effectiveCachePrices, effectivePrice } from "@/providers/catalog/price-preview";
 
 export const dynamic = "force-dynamic";
 
@@ -56,25 +57,6 @@ function extractCacheTokens(tokens: Record<string, unknown>): { cacheRead: numbe
   if (typeof details?.cached_tokens === "number") cacheRead = details.cached_tokens;
   if (typeof tokens.prompt_cache_hit_tokens === "number") cacheRead = tokens.prompt_cache_hit_tokens;
   return { cacheRead, cacheWrite };
-}
-
-/** cache 价格未配置（0）时回退常规 input 价计费——折扣价是显式配置出来的，
- *  未配置绝不意味着免费，否则 cache tokens 会漏收（平台吃上游成本）。 */
-function effectiveCachePrices(price: { inputPricePer1kMicros: number; cacheReadPricePer1kMicros: number; cacheWritePricePer1kMicros: number }): { cacheRead: number; cacheWrite: number } {
-  return {
-    cacheRead: price.cacheReadPricePer1kMicros || price.inputPricePer1kMicros,
-    cacheWrite: price.cacheWritePricePer1kMicros || price.inputPricePer1kMicros,
-  };
-}
-
-/** 实际收费价 = 模型标准价 × 渠道执行倍率（渠道按官方标准价折扣销售时配置，round 到整数微元/1k）。 */
-function effectivePrice(price: { inputPricePer1kMicros: number; outputPricePer1kMicros: number; cacheReadPricePer1kMicros: number; cacheWritePricePer1kMicros: number }, multiplier: number): { inputPricePer1kMicros: number; outputPricePer1kMicros: number; cacheReadPricePer1kMicros: number; cacheWritePricePer1kMicros: number } {
-  return {
-    inputPricePer1kMicros: Math.round(price.inputPricePer1kMicros * multiplier),
-    outputPricePer1kMicros: Math.round(price.outputPricePer1kMicros * multiplier),
-    cacheReadPricePer1kMicros: Math.round(price.cacheReadPricePer1kMicros * multiplier),
-    cacheWritePricePer1kMicros: Math.round(price.cacheWritePricePer1kMicros * multiplier),
-  };
 }
 
 async function logRejectedRequest(caller: Caller, model: string, message: string, requestId?: string) {
