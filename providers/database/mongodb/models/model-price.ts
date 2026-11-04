@@ -42,7 +42,7 @@ const schema = new Schema<ModelPriceRecord>({
   maxOutputTokens: { type: Number, required: true, min: 1, max: 500_000 },
   allowedReasoningEfforts: { type: [String], enum: reasoningEfforts, required: true, default: () => [...reasoningEfforts] },
   featured: { type: Boolean, required: true, default: false },
-  featuredDescription: { type: String, required: true, default: "", maxlength: 200 },
+  featuredDescription: { type: String, default: "", maxlength: 200 },
   enabled: { type: Boolean, required: true, default: true },
   publicVisible: { type: Boolean, required: true, default: true },
 }, { strict: "throw", timestamps: true });
