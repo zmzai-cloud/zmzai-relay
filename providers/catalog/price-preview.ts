@@ -2,8 +2,9 @@ export type ModelPrice = { inputPricePer1kMicros: number; outputPricePer1kMicros
 type ModelCosts = { inputCostPer1kTokensMicros: number | null; outputCostPer1kTokensMicros: number | null; cacheReadCostPer1kTokensMicros: number | null; cacheWriteCostPer1kTokensMicros: number | null };
 export function perMillionToMicrosPerThousand(value: number): number {
   const result = value * 1000;
-  if (!Number.isFinite(result) || value < 0 || !Number.isSafeInteger(result)) throw new Error("价格精度必须为 0.001 元/百万 token");
-  return result;
+  const rounded = Math.round(result);
+  if (!Number.isFinite(result) || value < 0 || !Number.isSafeInteger(rounded) || Math.abs(result-rounded) > Math.max(1, Math.abs(result))*Number.EPSILON*4) throw new Error("价格精度必须为 0.001 元/百万 token");
+  return rounded;
 }
 export function effectivePrice(price: ModelPrice, multiplier: number): ModelPrice {
   return { inputPricePer1kMicros: Math.round(price.inputPricePer1kMicros * multiplier), outputPricePer1kMicros: Math.round(price.outputPricePer1kMicros * multiplier), cacheReadPricePer1kMicros: Math.round(price.cacheReadPricePer1kMicros * multiplier), cacheWritePricePer1kMicros: Math.round(price.cacheWritePricePer1kMicros * multiplier) };

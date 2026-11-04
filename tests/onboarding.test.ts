@@ -52,4 +52,11 @@ describe("isolated onboarding",()=>{
   try{await expect(publishDraft(admin,d.id,d.revision,true)).rejects.toThrow("injected failure");expect(await ModelPriceModel.countDocuments()).toBe(0);expect(await ChannelModel.countDocuments()).toBe(0);expect((await getDraft(admin,d.id)).published).toBe(false)}finally{spy.mockRestore()}
  });
 
+ it("marks saved test stale if an existing channel changes",async()=>{
+  const c=await ChannelModel.create({name:"existing",baseUrl:"https://example.com/v1",apiKey:"secret",models:[],enabled:true});
+  const d=await saveDraft(admin,{channel:{kind:"existing",id:String(c._id)},models:[model]});await testDraftModel(admin,d.id,d.revision,"new-model");
+  await ChannelModel.findByIdAndUpdate(c._id,{$set:{apiKey:"changed"}});
+  const read=await getDraft(admin,d.id);expect(read.probes[0].stale).toBe(true);expect(JSON.stringify(read)).not.toContain("changed");
+ });
+
 });

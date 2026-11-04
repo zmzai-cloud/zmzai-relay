@@ -69,7 +69,7 @@ export default async function HomePage() {
             <span>{`curl https://m.zmzai.cloud/api/v1/chat/completions \\
   -H "Authorization: Bearer <YOUR_API_KEY>" \\
   -H "Content-Type: application/json" \\
-  -d '{"model":"deepseek-v4-flash","messages":[{"role":"user","content":"你好"}]}'`}</span>
+  -d '{"model":"YOUR_MODEL_ID","messages":[{"role":"user","content":"你好"}]}'`}</span>
           </Terminal>
         </div>
       </section>

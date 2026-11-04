@@ -62,7 +62,13 @@ export async function listDrafts(adminId:string) {
  await connectMongo();const docs=await OnboardingDraftModel.find({ownerId:adminId,published:false}).sort({updatedAt:-1}).limit(50).lean();return docs.map(d=>({...cleanDraft(d),probes:d.probes?.map(({fingerprint,...p})=>p)??[]}));
 }
 export async function getDraft(adminId:string,id:string) {
- await connectMongo();const d=await OnboardingDraftModel.findOne({_id:id,ownerId:adminId,published:false}).lean();if(!d)throw new Error("草稿不存在");return {...cleanDraft(d),probes:d.probes?.map(({fingerprint,...p})=>p)??[]};
+ await connectMongo();const d=await OnboardingDraftModel.findOne({_id:id,ownerId:adminId,published:false}).select("+secret").lean();if(!d)throw new Error("草稿不存在");
+ const payload=d.payload as unknown as DraftInput;
+ const channel=payload.channel.kind==="existing"?await ChannelModel.findById(payload.channel.id).select("+apiKey").lean():null;
+ const baseUrl=payload.channel.kind==="existing"?channel?.baseUrl:payload.channel.baseUrl;
+ const apiKey=payload.channel.kind==="existing"?channel?.apiKey:d.secret;
+ const probes=(d.probes??[]).map(({fingerprint,...p})=>{const m=payload.models.find(x=>x.publicModel===p.model);return {...p,stale:!m||!baseUrl||!apiKey||fingerprint!==probeFingerprint({baseUrl,apiKey,publicModel:p.model,upstreamModel:m.upstreamModel})}});
+ return {...cleanDraft(d),probes};
 }
 export async function updateDraft(adminId:string,id:string,revision:number,input:unknown) {
  await connectMongo();const old=await OnboardingDraftModel.findOne({_id:id,ownerId:adminId,published:false,revision}).select("+secret").lean();if(!old)throw new Error("草稿已变更");

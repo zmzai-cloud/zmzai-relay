@@ -1,0 +1,11 @@
+import {describe,it,expect,vi} from "vitest";
+import {NextRequest} from "next/server";
+const state=vi.hoisted(()=>({admin:true}));
+vi.mock("@/providers/auth/session",()=>({AdminRequiredError:class extends Error{},requireAdmin:async()=>{if(!state.admin)throw new (await import("@/providers/auth/session")).AdminRequiredError();return {id:"admin"}}}));
+vi.mock("@/providers/database/mongodb/connection",()=>({connectMongo:async()=>{}}));
+vi.mock("@/providers/database/mongodb/models/channel",()=>({ChannelModel:{findById:()=>({select:()=>({lean:async()=>({baseUrl:"https://example.com",apiKey:"hidden-secret"})})})}}));
+vi.mock("@/providers/network/safe-upstream-fetch",()=>({safeUpstreamFetch:async()=>Response.json({data:[{id:"model-a"},{id:"model-b"},{id:42}]}),validateUpstreamUrl:async()=>{}}));
+vi.mock("@/providers/database/mongodb/models/onboarding-draft",()=>({OnboardingDraftModel:{findOne:()=>({select:()=>({lean:async()=>({payload:{channel:{kind:"new",baseUrl:"https://example.com"}},secret:"draft-secret"})})})}}));
+import {POST} from "@/app/api/admin/onboarding/models/route";
+const req=()=>new NextRequest("http://localhost/api/admin/onboarding/models",{method:"POST",body:JSON.stringify({kind:"existing",id:"aaaaaaaaaaaaaaaaaaaaaaaa"})});
+describe("model discovery",()=>{it("requires admin",async()=>{state.admin=false;expect((await POST(req())).status).toBe(403);state.admin=true});it("lists only IDs and never returns channel credentials",async()=>{const r=await POST(req());const data=await r.json();expect(data.models).toEqual(["model-a","model-b"]);expect(JSON.stringify(data)).not.toContain("hidden-secret")});it("reads a saved new-channel draft without returning its key",async()=>{const r=await POST(new NextRequest("http://localhost/api/admin/onboarding/models",{method:"POST",body:JSON.stringify({kind:"draft",id:"aaaaaaaaaaaaaaaaaaaaaaaa"})}));expect(r.status).toBe(200);expect(JSON.stringify(await r.json())).not.toContain("draft-secret")})});

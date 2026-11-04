@@ -8,6 +8,7 @@ import { ModelPriceModel } from "@/providers/database/mongodb/models/model-price
 import { cnyMicrosLabel } from "@/providers/billing/currency";
 import { ModelsPanel } from "./models-panel";
 import { ProbeButton } from "./probe-button";
+import { OnboardingWizard } from "./onboarding-wizard";
 import { ModelProbeModel } from "@/providers/database/mongodb/models/model-probe";
 import { probeFingerprint } from "@/providers/catalog/model-probe";
 
@@ -36,6 +37,7 @@ export default async function ModelsPage() {
         description="价格与推理强度在这里管理；上游映射在「渠道与路由」维护。"
       />
 
+      <OnboardingWizard channels={channels.map(c => ({id:String(c._id),name:c.name,executeMultiplier:c.executeMultiplier??1}))} existingModels={models.map(m=>({model:m.model,inputPricePer1kMicros:m.inputPricePer1kMicros,outputPricePer1kMicros:m.outputPricePer1kMicros,cacheReadPricePer1kMicros:m.cacheReadPricePer1kMicros,cacheWritePricePer1kMicros:m.cacheWritePricePer1kMicros,maxInputTokens:m.maxInputTokens,maxOutputTokens:m.maxOutputTokens,allowedReasoningEfforts:m.allowedReasoningEfforts}))} />
       <h2 className="mt-8 text-lg font-semibold">渠道</h2>
       <div className="mt-3 overflow-x-auto rounded-lg border border-line">
         <table className="w-full min-w-[32rem] border-collapse text-sm">

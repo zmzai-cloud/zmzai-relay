@@ -268,7 +268,7 @@ function CreateKeyDialog({
 {`curl https://m.zmzai.cloud/api/v1/chat/completions \\
   -H "Authorization: Bearer ${newKey}" \\
   -H "Content-Type: application/json" \\
-  -d '{"model":"deepseek-v4-flash","messages":[{"role":"user","content":"你好"}]}'`}
+  -d '{"model":"YOUR_MODEL_ID","messages":[{"role":"user","content":"你好"}]}'`}
           </pre>
         </details>
 
