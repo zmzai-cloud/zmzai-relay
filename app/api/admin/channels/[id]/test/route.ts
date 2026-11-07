@@ -4,7 +4,9 @@ import { AdminRequiredError, requireAdmin } from "@/providers/auth/session";
 import { connectMongo } from "@/providers/database/mongodb/connection";
 import { ChannelModel } from "@/providers/database/mongodb/models/channel";
 import { safeUpstreamFetch } from "@/providers/network/safe-upstream-fetch";
-import { markChannelSuccess, markChannelFailure } from "@/providers/channels/health";
+import { recordModelSuccess, recordModelFailure } from "@/providers/channels/model-health";
+import { ModelProbeModel } from "@/providers/database/mongodb/models/model-probe";
+import { probeModel, probeFingerprint } from "@/providers/catalog/model-probe";
 
 export const dynamic = "force-dynamic";
 
@@ -49,41 +51,15 @@ export async function POST(
     models = { ok: false, status: 0, latencyMs: Date.now() - startedAt, error: e instanceof Error ? e.message : "connect failed" };
   }
 
-  // 第二段：真实推理探测。
-  const model = channel.models[0]?.upstream;
-  if (!model) {
-    return NextResponse.json({ ok: models.ok, models, completion: null });
-  }
-  const completionStartedAt = Date.now();
-  try {
-    const completion = await safeUpstreamFetch(`${baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${channel.apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model, max_tokens: 1, messages: [{ role: "user", content: "ping" }] }),
-      signal: AbortSignal.timeout(20000),
-    });
-    if (completion.ok) {
-      // 真实推理成功 = 渠道确认恢复：清零失败计数并解除冷却（管理员可手动救活冷却中的渠道）
-      await markChannelSuccess(channel._id);
-      return NextResponse.json({
-        ok: true,
-        models,
-        completion: { ok: true, status: completion.status, latencyMs: Date.now() - completionStartedAt, model },
-      });
-    }
-    const details = (await completion.text().catch(() => "")).slice(0, 300);
-    await markChannelFailure(channel._id);
-    return NextResponse.json({
-      ok: false,
-      models,
-      completion: { ok: false, status: completion.status, latencyMs: Date.now() - completionStartedAt, model, error: details || `HTTP ${completion.status}` },
-    });
-  } catch (e) {
-    await markChannelFailure(channel._id);
-    return NextResponse.json({
-      ok: false,
-      models,
-      completion: { ok: false, status: 0, latencyMs: Date.now() - completionStartedAt, model, error: e instanceof Error ? e.message : "connect failed" },
-    });
-  }
+  // 第二段：测试第一个模型，结果只影响该模型的路由状态。
+  const mapping=channel.models[0];
+  if (!mapping) return NextResponse.json({ ok: models.ok, models, completion: null });
+  const config={baseUrl:channel.baseUrl,apiKey:channel.apiKey,publicModel:mapping.public,upstreamModel:mapping.upstream};
+  const probeStartedAt=new Date();
+  const result=await probeModel(config),fingerprint=probeFingerprint(config);
+  await ModelProbeModel.findOneAndUpdate({channelId:channel._id,publicModel:mapping.public},{$set:{upstreamModel:mapping.upstream,fingerprint,...result}},{upsert:true,new:true,runValidators:true});
+  const key={channelId:channel._id,publicModel:mapping.public,fingerprint,startedAt:probeStartedAt};
+  if(result.ok) await recordModelSuccess(key).catch(()=>console.error("记录模型健康状态失败"));
+  else await recordModelFailure(key,{category:result.category==="other"?"upstream":result.category??"upstream",affectsHealth:result.category!=="other"||result.status<400||result.status>=500,retryAt:result.retryAt}).catch(()=>console.error("记录模型健康状态失败"));
+  return NextResponse.json({ok:result.ok,models,completion:{ok:result.ok,status:result.status,latencyMs:result.latencyMs,model:mapping.upstream,...(!result.ok?{error:result.category??"other"}:{})}});
 }

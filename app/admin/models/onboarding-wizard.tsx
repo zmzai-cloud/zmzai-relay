@@ -1,5 +1,6 @@
 "use client";
 import {useEffect,useState} from "react";
+import {healthLabels as label} from "@/providers/channels/health-labels";
 import {OFFICIAL_PRICES} from "@/providers/catalog/official-prices";
 import {perMillionToMicrosPerThousand,previewPrice} from "@/providers/catalog/price-preview";
 
@@ -9,7 +10,6 @@ type Existing={model:string}&Price;
 type Row={factor:string;publicModel:string;upstreamModel:string;mode:"new"|"existing";input:string;output:string;cacheRead:string;cacheWrite:string;costInput:string;costOutput:string;costRead:string;costWrite:string;maxInput:string;maxOutput:string};
 type Draft={id:string;revision:number;payload:{channel:{kind:"existing"|"new";id?:string;name?:string;baseUrl?:string};models:Array<{publicModel:string;upstreamModel:string;mode:"new"|"existing";price:Omit<Price,"inputPricePer1kMicros"|"outputPricePer1kMicros">&{inputPricePer1kMicros:number|null;outputPricePer1kMicros:number|null};cost:{inputCostPer1kTokensMicros:number;outputCostPer1kTokensMicros:number;cacheReadCostPer1kTokensMicros?:number;cacheWriteCostPer1kTokensMicros?:number}|null}>};probes?:Array<{model:string;ok:boolean;category:string|null;stale?:boolean}>};
 type RebaseReview={token:string;channelChanged:boolean;currentChannel:{name:string;baseUrl:string;priority:number;executeMultiplier:number;enabled:boolean}|null;models:Array<{model:string;mode:string;draftPrice:Draft["payload"]["models"][number]["price"];currentPrice:Price|null;changed:boolean}>};
-const label:Record<string,string>={auth:"鉴权失败",balance:"余额不足",rate_limit:"请求受限",upstream:"上游异常",timeout:"超时",other:"响应异常"};
 const yuan=(n:number|null|undefined)=>n==null?"":String(n/1000);
 const field="w-full rounded border border-line bg-bg px-3 py-2 text-sm";
 function newRow(name:string,existingModels:Existing[]):Row {const p=existingModels.find(x=>x.model===name);return {factor:"1",publicModel:name,upstreamModel:name,mode:p?"existing":"new",input:p?yuan(p.inputPricePer1kMicros):"",output:p?yuan(p.outputPricePer1kMicros):"",cacheRead:p?yuan(p.cacheReadPricePer1kMicros):"0",cacheWrite:p?yuan(p.cacheWritePricePer1kMicros):"0",costInput:"",costOutput:"",costRead:"",costWrite:"",maxInput:p?String(p.maxInputTokens):"128000",maxOutput:p?String(p.maxOutputTokens):"4096"}}

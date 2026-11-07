@@ -2,8 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { resolveApiKey } from "@/providers/auth/apikey";
 import { getCurrentUser } from "@/providers/auth/session";
-import { ChannelModel } from "@/providers/database/mongodb/models/channel";
-import { getInternalModelSelectorData, getPublicModels } from "@/providers/catalog/public-models";
+import { getInternalModelSelectorData, getPublicChannels, getPublicModels } from "@/providers/catalog/public-models";
 
 export const dynamic = "force-dynamic";
 
@@ -25,24 +24,28 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "需要有效的 API Token 或登录会话", code: "UNAUTHENTICATED" }, { status: 401 });
   }
 
-  const now = new Date();
-  const [models, modelSelectorData, healthyChannels] = await Promise.all([
-    getPublicModels().then((all) =>
+  const healthyChannels = await getPublicChannels();
+  const [models, modelSelectorData] = await Promise.all([
+    getPublicModels(healthyChannels).then((all) =>
       all
         .filter((model) => model.routable)
         .filter((model) => !caller.allowedModels || caller.allowedModels.includes(model.model))
         .map(({ model, maxInputTokens, maxOutputTokens, allowedReasoningEfforts }) => ({ model, maxInputTokens, maxOutputTokens, allowedReasoningEfforts }))
     ),
-    getInternalModelSelectorData(),
-    ChannelModel.find({ enabled: true, $or: [{ cooldownUntil: null }, { cooldownUntil: { $lte: now } }] }).select("models").lean(),
+    getInternalModelSelectorData(healthyChannels),
   ]);
   // 每个模型当前可路由的健康渠道数：0 表示提交即会失败（所有渠道禁用/冷却），
   // 供调用方（如 Sandbox 控制台）在提交前提前拦截。
   const availableChannels = new Map<string, number>();
   for (const channel of healthyChannels) {
-    for (const mapping of channel.models) availableChannels.set(mapping.public, (availableChannels.get(mapping.public) ?? 0) + 1);
+    for (const mapping of channel.models) if(mapping.available) availableChannels.set(mapping.model, (availableChannels.get(mapping.model) ?? 0) + 1);
   }
   const modelsWithHealth = models.map((model) => ({ ...model, availableChannels: availableChannels.get(model.model) ?? 0 }));
 
-  return NextResponse.json({ models: modelsWithHealth, modelSelectorData });
+  const allowed=(id:string)=>!caller.allowedModels || caller.allowedModels.includes(id);
+  const filteredSelector={
+    featured:modelSelectorData.featured.filter(item=>allowed(item.id)),
+    channels:modelSelectorData.channels.map(channel=>({...channel,models:channel.models.filter(item=>allowed(item.id))})).filter(channel=>channel.models.length>0),
+  };
+  return NextResponse.json({ models: modelsWithHealth, modelSelectorData:filteredSelector });
 }

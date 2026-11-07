@@ -51,13 +51,13 @@ export default async function PublicDocsPage() {
             <span>{`curl -N ${BASE} \\
   -H "Authorization: Bearer <YOUR_API_KEY>" \\
   -H "Content-Type: application/json" \\
-  -d '{"model":"deepseek-v4-pro","stream":true,"messages":[{"role":"user","content":"你好"}]}'`}</span>
+  -d '{"model":"YOUR_MODEL_ID","stream":true,"messages":[{"role":"user","content":"你好"}]}'`}</span>
           </Terminal>
         </div>
 
         <h2 className="mt-10 text-lg font-semibold">4. 渠道路由</h2>
         <p className="mt-2 text-sm leading-6 text-ink-2">
-          默认按模型自动选择上游渠道（失败时自动尝试下一个）。需要精确控制时，在请求体传入 <code className="font-mono text-xs">&quot;channel&quot;: &quot;渠道名&quot;</code>。渠道名见模型列表的渠道列。
+          默认按模型自动选择上游渠道，失败时尝试其他可用渠道。价格按最终使用的渠道计算，不同渠道的价格可能不同；需要固定渠道时，在请求体传入 <code className="font-mono text-xs">&quot;channel&quot;: &quot;渠道名&quot;</code>。
         </p>
 
         <h2 className="mt-10 text-lg font-semibold">5. 推理强度</h2>
@@ -67,7 +67,11 @@ export default async function PublicDocsPage() {
 
         <h2 className="mt-10 text-lg font-semibold">6. 计费</h2>
         <p className="mt-2 text-sm leading-6 text-ink-2">
-          按 token 计费：输入、输出分别计价，缓存命中的输入按折扣价结算。每次调用前按最大成本预占额度、结束后按实际用量结算；余额与每笔账单可在控制台「用量与账单」核对。
+          按 token 计费：输入、输出分别计价，缓存价格未单独配置时按输入价结算。调用前按预估用量预占额度，结束后按实际用量和所用渠道价格结算；余额与每笔账单可在控制台「用量与账单」核对。
+        </p>
+        <h2 className="mt-10 text-lg font-semibold">7. 上游异常与重试</h2>
+        <p className="mt-2 text-sm leading-6 text-ink-2">
+          上游短时限流返回 <code>UPSTREAM_RATE_LIMITED</code>；周/月额度用尽返回 <code>UPSTREAM_QUOTA_EXHAUSTED</code>；上游余额或鉴权异常分别返回 <code>UPSTREAM_BALANCE</code> 和 <code>UPSTREAM_AUTH</code>。如响应包含 <code>Retry-After</code>，请等待指定秒数后再试；该时间只是下次尝试时间，并不保证上游已恢复。
         </p>
       </div>
     </PublicShell>
