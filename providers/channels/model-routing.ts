@@ -1,7 +1,7 @@
 import {probeFingerprint} from "@/providers/catalog/model-probe";
 import {isModelCooling} from "@/providers/channels/model-health";
 import type {UpstreamErrorCategory} from "@/providers/channels/upstream-errors";
-export type RoutingChannel={_id:unknown;baseUrl:string;apiKey:string;models:Array<{public:string;upstream:string}>};
+export type RoutingChannel={_id:unknown;baseUrl:string;apiKey:string;cooldownUntil?:Date|null;models:Array<{public:string;upstream:string}>};
 export type RoutingHealth={channelId:unknown;publicModel:string;fingerprint:string;category:UpstreamErrorCategory|null;cooldownUntil:Date|null;leaseUntil?:Date|null};
 export function selectModelCandidates<T extends RoutingChannel>(channels:T[],health:RoutingHealth[],model:string,now=new Date()) {
  const byChannel=new Map(health.filter(h=>h.publicModel===model).map(h=>[String(h.channelId),h]));
@@ -10,7 +10,11 @@ export function selectModelCandidates<T extends RoutingChannel>(channels:T[],hea
   const mapping=channel.models.find(m=>m.public===model);if(!mapping)continue;
   const h=byChannel.get(String(channel._id));
   const fingerprint=probeFingerprint({baseUrl:channel.baseUrl,apiKey:channel.apiKey,publicModel:model,upstreamModel:mapping.upstream});
-  if(h&&isModelCooling(h,fingerprint,now))blocked.push(h);else available.push(channel);
+  const legacy=channel.cooldownUntil && new Date(channel.cooldownUntil).getTime()>now.getTime() ? new Date(channel.cooldownUntil) : null;
+  if(legacy || (h&&isModelCooling(h,fingerprint,now))) {
+   if(h&&isModelCooling(h,fingerprint,now)) blocked.push({...h,cooldownUntil:legacy&&(!h.cooldownUntil||legacy>h.cooldownUntil)?legacy:h.cooldownUntil});
+   else blocked.push({channelId:channel._id,publicModel:model,fingerprint,category:"upstream",cooldownUntil:legacy});
+  } else available.push(channel);
  }
  return {available,blocked};
 }

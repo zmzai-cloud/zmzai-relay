@@ -16,9 +16,10 @@ export async function POST(req:NextRequest) {
   const mapping=channel?.models.find(m=>m.public===input.data.model);
   if(!channel || !mapping)return NextResponse.json({error:"渠道中没有此模型"},{status:404});
   const config={baseUrl:channel.baseUrl,apiKey:channel.apiKey,upstreamModel:mapping.upstream,publicModel:mapping.public};
+  const probeStartedAt=new Date();
   const result=await probeModel(config);
   await ModelProbeModel.findOneAndUpdate({channelId:channel._id,publicModel:mapping.public},{$set:{upstreamModel:mapping.upstream,fingerprint:probeFingerprint(config),...result}},{upsert:true,new:true,runValidators:true});
-  const key={channelId:channel._id,publicModel:mapping.public,fingerprint:probeFingerprint(config)};
+  const key={channelId:channel._id,publicModel:mapping.public,fingerprint:probeFingerprint(config),startedAt:probeStartedAt};
   if(result.ok) await recordModelSuccess(key).catch(()=>console.error("记录模型健康状态失败"));
   else await recordModelFailure(key,{category:result.category==="other"?"upstream":result.category??"upstream",affectsHealth:result.category!=="other"||result.status<400||result.status>=500,retryAt:result.retryAt??null}).catch(()=>console.error("记录模型健康状态失败"));
   return NextResponse.json({result});

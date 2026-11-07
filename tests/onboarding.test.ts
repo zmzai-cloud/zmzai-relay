@@ -11,7 +11,7 @@ import {saveDraft,publishDraft,getDraft,updateDraft,testDraftModel,draftSchema,i
 const sync=vi.hoisted(()=>({hold:false,waiting:0,release:undefined as (()=>void)|undefined}));
 vi.mock("@/providers/network/safe-upstream-fetch",()=>({validateUpstreamUrl:async(input:string)=>{const u=new URL(input);if(u.protocol!=="https:"||u.username||u.password||u.hostname==="127.0.0.1")throw new Error("渠道地址不安全")},safeUpstreamFetch:async()=>{if(sync.hold){sync.waiting++;if(sync.waiting===2)sync.release?.();else await new Promise<void>(r=>sync.release=r)}return Response.json({choices:[{message:{role:"assistant",content:"ok"}}]})}}));
 import {ChannelModel} from "@/providers/database/mongodb/models/channel";
-import {recordModelFailure,recordModelSuccess,isModelCooling,claimModelRecovery} from "@/providers/channels/model-health";
+import {recordModelFailure,recordModelSuccess,isModelCooling,claimModelRecovery,renewModelRecovery,releaseModelRecovery} from "@/providers/channels/model-health";
 import {ModelHealthModel} from "@/providers/database/mongodb/models/model-health";
 import {classifyUpstreamError} from "@/providers/channels/upstream-errors";
 import {ModelProbeModel} from "@/providers/database/mongodb/models/model-probe";
@@ -36,7 +36,7 @@ beforeAll(async()=>{
  await mongoose.connect(`mongodb://127.0.0.1:${port}/relay_onboarding_test?replicaSet=relaytest`,{serverSelectionTimeoutMS:20000});
 },30000);
 afterAll(async()=>{await mongoose.disconnect();if(mongoProcess && mongoProcess.exitCode===null){const done=once(mongoProcess,"exit");mongoProcess.kill("SIGTERM");await done}rmSync(dir,{recursive:true,force:true})},30000);
-beforeEach(async()=>{await mongoose.connection.db!.dropDatabase()});
+beforeEach(async()=>{for(const collection of Object.values(mongoose.connection.collections)) await collection.deleteMany({})});
 describe("isolated onboarding",()=>{
  it("saves a draft without creating live models or channels; publishes only after confirmation",async()=>{const d=await saveDraft(admin,draft());expect(await ChannelModel.countDocuments()).toBe(0);expect(await ModelPriceModel.countDocuments()).toBe(0);await expect(publishDraft(admin,d.id,d.revision,false)).rejects.toThrow(/测试/);await publishDraft(admin,d.id,d.revision,true);expect(await ChannelModel.countDocuments()).toBe(1);expect(await ModelPriceModel.countDocuments({model:"new-model"})).toBe(1);await expect(publishDraft(admin,d.id,d.revision,true)).rejects.toThrow();});
  it("adds a mapping without changing an existing model's pricing or availability",async()=>{await ModelPriceModel.create({model:"existing",...price,enabled:true,publicVisible:false});const c=await ChannelModel.create({name:"existing",baseUrl:"https://example.com/v1",apiKey:"secret",models:[{public:"old-model",upstream:"old"}],enabled:true});const d=await saveDraft(admin,{channel:{kind:"existing",id:String(c._id)},models:[{...model,publicModel:"existing",mode:"existing"}]});await publishDraft(admin,d.id,d.revision,true);const p=await ModelPriceModel.findOne({model:"existing"}).lean();expect(p?.publicVisible).toBe(false);expect(p?.inputPricePer1kMicros).toBe(100);expect((await ChannelModel.findById(c._id).lean())?.models).toHaveLength(2);});
@@ -131,6 +131,31 @@ describe("isolated onboarding",()=>{
   await ModelHealthModel.createIndexes();const now=new Date();const key={channelId:new mongoose.Types.ObjectId(),publicModel:"a",fingerprint:"one"};await recordModelFailure(key,classifyUpstreamError(429,'{"error":{"code":"1310"}}',null,now),now);
   const later=new Date(now.getTime()+3600001);const claims=await Promise.all(Array.from({length:10},()=>claimModelRecovery(key,later,60000)));expect(claims.filter(Boolean)).toHaveLength(1);
   expect(await claimModelRecovery(key,new Date(later.getTime()+60001),60000)).toBeTruthy();
+ });
+
+ it("ignores stale requests and protects the recovery lease while it renews",async()=>{
+  const base=new Date();const key={channelId:new mongoose.Types.ObjectId(),publicModel:"a",fingerprint:"one"};
+  const older={...key,startedAt:new Date(base.getTime()-1000)};
+  await recordModelFailure(key,classifyUpstreamError(429,'{"error":{"code":"1310"}}',null,base),base);
+  await recordModelSuccess(older,new Date(base.getTime()+1000));
+  let h=await ModelHealthModel.findOne({channelId:key.channelId}).lean();expect(h?.category).toBe("quota_exhausted");
+  const later=new Date(base.getTime()+3600001);const lease=await claimModelRecovery(key,later,60000);expect(lease).toBeTruthy();
+  await recordModelSuccess(older,new Date(later.getTime()+1000));
+  await recordModelFailure(older,classifyUpstreamError(503,"",null),new Date(later.getTime()+2000));
+  h=await ModelHealthModel.findOne({channelId:key.channelId}).lean();expect(h?.leaseToken).toBe(lease!.token);expect(h?.category).toBe("quota_exhausted");
+  expect(await renewModelRecovery(key,lease!.token,new Date(later.getTime()+30000),60000)).toBe(true);
+  expect(await claimModelRecovery(key,new Date(later.getTime()+61000),60000)).toBeNull();
+  await releaseModelRecovery(key,{token:"wrong",expiresAt:later});
+  expect((await ModelHealthModel.findOne({channelId:key.channelId}).lean())?.leaseToken).toBe(lease!.token);
+  await recordModelSuccess({...key,leaseToken:lease!.token},new Date(later.getTime()+62000));
+  h=await ModelHealthModel.findOne({channelId:key.channelId}).lean();expect(h?.category).toBeNull();expect(h?.leaseToken).toBeNull();
+ });
+
+ it("does not restore an old configuration from an earlier in-flight success",async()=>{
+  const now=new Date();const key={channelId:new mongoose.Types.ObjectId(),publicModel:"a",fingerprint:"old",startedAt:now};
+  await recordModelSuccess({...key,fingerprint:"new",startedAt:new Date(now.getTime()+1000)},new Date(now.getTime()+2000));
+  await recordModelSuccess(key,new Date(now.getTime()+3000));
+  expect((await ModelHealthModel.findOne({channelId:key.channelId}).select("+fingerprint").lean())?.fingerprint).toBe("new");
  });
 
 });

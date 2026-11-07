@@ -55,9 +55,10 @@ export async function POST(
   const mapping=channel.models[0];
   if (!mapping) return NextResponse.json({ ok: models.ok, models, completion: null });
   const config={baseUrl:channel.baseUrl,apiKey:channel.apiKey,publicModel:mapping.public,upstreamModel:mapping.upstream};
+  const probeStartedAt=new Date();
   const result=await probeModel(config),fingerprint=probeFingerprint(config);
   await ModelProbeModel.findOneAndUpdate({channelId:channel._id,publicModel:mapping.public},{$set:{upstreamModel:mapping.upstream,fingerprint,...result}},{upsert:true,new:true,runValidators:true});
-  const key={channelId:channel._id,publicModel:mapping.public,fingerprint};
+  const key={channelId:channel._id,publicModel:mapping.public,fingerprint,startedAt:probeStartedAt};
   if(result.ok) await recordModelSuccess(key).catch(()=>console.error("记录模型健康状态失败"));
   else await recordModelFailure(key,{category:result.category==="other"?"upstream":result.category??"upstream",affectsHealth:result.category!=="other"||result.status<400||result.status>=500,retryAt:result.retryAt}).catch(()=>console.error("记录模型健康状态失败"));
   return NextResponse.json({ok:result.ok,models,completion:{ok:result.ok,status:result.status,latencyMs:result.latencyMs,model:mapping.upstream,...(!result.ok?{error:result.category??"other"}:{})}});

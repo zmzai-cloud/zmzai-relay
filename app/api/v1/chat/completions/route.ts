@@ -12,7 +12,7 @@ import { chargeMicros, maximumChargeMicros, reserveBalance, releaseReservation, 
 import { connectMongo } from "@/providers/database/mongodb/connection";
 import { ChannelAttemptModel } from "@/providers/database/mongodb/models/channel-attempt";
 import { ChannelModel, resolveChannelCosts, type ModelCostOverride } from "@/providers/database/mongodb/models/channel";
-import { claimModelRecovery, releaseModelRecovery, recordModelSuccess, recordModelFailure, type ModelHealthKey } from "@/providers/channels/model-health";
+import { claimModelRecovery, releaseModelRecovery, recordModelSuccess, recordModelFailure, startRecoveryHeartbeat, type RecoveryLease, type ModelHealthKey } from "@/providers/channels/model-health";
 import { selectModelCandidates, type RoutingHealth } from "@/providers/channels/model-routing";
 import { classifyUpstreamError, readUpstreamErrorBody, type UpstreamErrorCategory } from "@/providers/channels/upstream-errors";
 import { ModelHealthModel } from "@/providers/database/mongodb/models/model-health";
@@ -203,13 +203,17 @@ export async function POST(req: NextRequest) {
   const retries: Date[] = [];
   for (const channel of candidates) {
     const upstreamModel = channel.models.find((item) => item.public === parsed.data.model)?.upstream ?? parsed.data.model;
-    const healthKey: ModelHealthKey = {channelId:channel._id,publicModel:parsed.data.model,fingerprint:probeFingerprint({baseUrl:channel.baseUrl,apiKey:channel.apiKey,publicModel:parsed.data.model,upstreamModel})};
+    const healthKey: ModelHealthKey = {startedAt:new Date(),channelId:channel._id,publicModel:parsed.data.model,fingerprint:probeFingerprint({baseUrl:channel.baseUrl,apiKey:channel.apiKey,publicModel:parsed.data.model,upstreamModel})};
     const previous=health.find(h=>String(h.channelId)===String(channel._id)&&h.publicModel===parsed.data.model&&h.fingerprint===healthKey.fingerprint);
-    let recoveryLease: Date | null = null;
+    let recoveryLease: RecoveryLease | null = null;
+    const leaseMs=(channel.timeoutMs??60000)+135000;
     if(previous?.cooldownUntil && previous.cooldownUntil.getTime()<=Date.now() && previous.category){
-      recoveryLease=await claimModelRecovery(healthKey,new Date(),(channel.timeoutMs??60000)+135000).catch(()=>null);
+      recoveryLease=await claimModelRecovery(healthKey,new Date(),leaseMs).catch(()=>null);
       if(!recoveryLease){failures.push(previous.category);retries.push(new Date(Date.now()+5000));continue;}
+      healthKey.leaseToken=recoveryLease.token;
     }
+    const heartbeat=recoveryLease ? startRecoveryHeartbeat(healthKey,recoveryLease,leaseMs) : null;
+    let streamOwnsHeartbeat=false;
     const started = Date.now();
     // 实际收费价 = 模型标准价 × 渠道执行倍率（乘渠道折扣后计费并写入快照）
     const effective = effectivePrice(price, channel.executeMultiplier ?? 1);
@@ -219,7 +223,7 @@ export async function POST(req: NextRequest) {
       // 不覆盖流式读取——AbortSignal.timeout 曾把活跃长输出（PPT 几百行
       // 脚本）在 60/120s 硬切报 terminated/aborted。流式卡死保护由
       // streamResponse 的 idle watchdog（120s 无新数据才中断）负责。
-      const upstream = await safeUpstreamFetch(`${channel.baseUrl.replace(/\/$/, "")}/chat/completions`, { method: "POST", headers: { Authorization: `Bearer ${channel.apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ ...parsed.data, model: upstreamModel, requestId: undefined, stream_options: parsed.data.stream ? { include_usage: true } : undefined }), connectTimeoutMs: channel.timeoutMs });
+      const upstream = await safeUpstreamFetch(`${channel.baseUrl.replace(/\/$/, "")}/chat/completions`, { method: "POST", headers: { Authorization: `Bearer ${channel.apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ ...parsed.data, model: upstreamModel, requestId: undefined, stream_options: parsed.data.stream ? { include_usage: true } : undefined }), connectTimeoutMs: channel.timeoutMs, signal:heartbeat?.signal });
       if (!upstream.ok) {
         const classified = classifyUpstreamError(upstream.status, await readUpstreamErrorBody(upstream), upstream.headers.get("retry-after"));
         failures.push(classified.category); if(classified.retryAt) retries.push(classified.retryAt);
@@ -228,7 +232,7 @@ export async function POST(req: NextRequest) {
         else if(recoveryLease) await releaseModelRecovery(healthKey,recoveryLease).catch(()=>console.error("释放模型检测锁失败"));
         continue;
       }
-      if (parsed.data.stream && upstream.body) return streamResponse(upstream.body, usage._id, channel, upstreamModel, parsed.data.model, effective, started, traceId, healthKey, recoveryLease);
+      if (parsed.data.stream && upstream.body) { streamOwnsHeartbeat=true; return streamResponse(upstream.body, usage._id, channel, upstreamModel, parsed.data.model, effective, started, traceId, healthKey, recoveryLease,heartbeat); }
       const json = await upstream.json().catch(() => null);
       const tokens = json?.usage as Record<string, unknown> | undefined;
       if (!tokens) { if(recoveryLease) await releaseModelRecovery(healthKey,recoveryLease).catch(()=>console.error("释放模型检测锁失败")); await releaseReservation(usage._id); await UsageModel.updateOne({ _id: usage._id }, { $set: { status: "unsettled", lastError: "upstream omitted usage" } }); return error("USAGE_UNAVAILABLE", 502, "上游未返回用量，已取消扣费"); }
@@ -245,7 +249,7 @@ export async function POST(req: NextRequest) {
       await recordModelSuccess(healthKey).catch(()=>console.error("记录模型健康状态失败"));
       if (specifiedChannelName) return NextResponse.json(json);
       return NextResponse.json(json);
-    } catch (e) { if(received) throw e; failures.push("upstream"); await ChannelAttemptModel.create({ usageId: usage._id, channelId: channel._id, upstreamModel, status: "failed", latencyMs: Date.now() - started, error: "upstream network failure", costStatus: "unknown" }); await recordModelFailure(healthKey,{category:"upstream",affectsHealth:true,retryAt:null}).catch(()=>console.error("记录模型健康状态失败")); }
+    } catch (e) { if(received) throw e; failures.push("upstream"); await ChannelAttemptModel.create({ usageId: usage._id, channelId: channel._id, upstreamModel, status: "failed", latencyMs: Date.now() - started, error: "upstream network failure", costStatus: "unknown" }); await recordModelFailure(healthKey,{category:"upstream",affectsHealth:true,retryAt:null}).catch(()=>console.error("记录模型健康状态失败")); } finally {if(!streamOwnsHeartbeat)heartbeat?.stop();}
   }
   await releaseReservation(usage._id); await UsageModel.updateOne({ _id: usage._id }, { $set: { status: "failed", lastError: "all eligible channels failed" } });
   return upstreamUnavailable(failures,retries.sort((a,b)=>a.getTime()-b.getTime())[0]);
@@ -255,7 +259,7 @@ export async function POST(req: NextRequest) {
  *  才判定为死连接。活跃的长输出（如几百行脚本）不会被误杀。 */
 const UPSTREAM_STREAM_IDLE_TIMEOUT_MS = 120_000;
 
-function streamResponse(body: ReadableStream<Uint8Array>, usageId: import("mongoose").Types.ObjectId, channel: { _id: import("mongoose").Types.ObjectId; inputCostPer1kTokensMicros: number | null; outputCostPer1kTokensMicros: number | null; cacheReadCostPer1kTokensMicros: number | null; cacheWriteCostPer1kTokensMicros: number | null; modelCosts: Record<string, ModelCostOverride> }, upstreamModel: string, publicModel: string, price: { inputPricePer1kMicros: number; outputPricePer1kMicros: number; cacheReadPricePer1kMicros: number; cacheWritePricePer1kMicros: number }, started: number, traceId: string | null | undefined, healthKey: ModelHealthKey, recoveryLease: Date | null) {
+function streamResponse(body: ReadableStream<Uint8Array>, usageId: import("mongoose").Types.ObjectId, channel: { _id: import("mongoose").Types.ObjectId; inputCostPer1kTokensMicros: number | null; outputCostPer1kTokensMicros: number | null; cacheReadCostPer1kTokensMicros: number | null; cacheWriteCostPer1kTokensMicros: number | null; modelCosts: Record<string, ModelCostOverride> }, upstreamModel: string, publicModel: string, price: { inputPricePer1kMicros: number; outputPricePer1kMicros: number; cacheReadPricePer1kMicros: number; cacheWritePricePer1kMicros: number }, started: number, traceId: string | null | undefined, healthKey: ModelHealthKey, recoveryLease: RecoveryLease | null, heartbeat: ReturnType<typeof startRecoveryHeartbeat> | null) {
   const stream = new ReadableStream<Uint8Array>({ async start(controller) {
     const reader = body.getReader(); const decoder = new TextDecoder(); let raw = ""; let upstreamComplete = false;
     try { for (;;) {
@@ -293,7 +297,7 @@ function streamResponse(body: ReadableStream<Uint8Array>, usageId: import("mongo
         await recordModelSuccess(healthKey).catch(()=>console.error("记录模型健康状态失败"));
       }
       controller.close();
-    } catch (e) { await releaseReservation(usageId); const isIdle = e instanceof Error && e.message.includes("IDLE_TIMEOUT"); const reason = isIdle ? "上游流 120s 无数据（idle 超时），疑似死连接" : "上游流读取失败"; await UsageModel.updateOne({ _id: usageId }, { $set: { status: "failed", lastError: reason } }); if(!upstreamComplete) await recordModelFailure(healthKey,{category:"upstream",affectsHealth:true,retryAt:null}).catch(()=>console.error("记录模型健康状态失败")); else if(recoveryLease) await releaseModelRecovery(healthKey,recoveryLease).catch(()=>console.error("释放模型检测锁失败")); controller.error(new Error(reason)); }
+    } catch (e) { await releaseReservation(usageId); const isIdle = e instanceof Error && e.message.includes("IDLE_TIMEOUT"); const reason = isIdle ? "上游流 120s 无数据（idle 超时），疑似死连接" : "上游流读取失败"; await UsageModel.updateOne({ _id: usageId }, { $set: { status: "failed", lastError: reason } }); if(!upstreamComplete) await recordModelFailure(healthKey,{category:"upstream",affectsHealth:true,retryAt:null}).catch(()=>console.error("记录模型健康状态失败")); else if(recoveryLease) await releaseModelRecovery(healthKey,recoveryLease).catch(()=>console.error("释放模型检测锁失败")); controller.error(new Error(reason)); } finally {heartbeat?.stop();}
   }});
   return new NextResponse(stream, { headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" } });
 }

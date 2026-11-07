@@ -26,4 +26,11 @@ describe("模型级路由",()=>{
   const result=summarizeModelHealth(channels,health,new Date(now.getTime()+3600001));expect(result.blocked).toBe(0);expect(result.pending).toBe(1);
  });
 
+ it("升级期间保留仍有效的旧渠道冷却，过期后自动失效",()=>{
+  const legacy={...channels[0],cooldownUntil:new Date(now.getTime()+60000)};
+  expect(selectModelCandidates([legacy],[],"a",now).available).toHaveLength(0);
+  expect(selectModelCandidates([legacy],[],"b",now).available).toHaveLength(0);
+  expect(selectModelCandidates([legacy],[],"a",new Date(now.getTime()+60001)).available).toHaveLength(1);
+ });
+
 });

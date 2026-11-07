@@ -21,6 +21,7 @@ describe("上游错误分类",()=>{
  it("区分上游模型不存在与用户内容审核错误",()=>{
   const missing=classifyUpstreamError(404,'{"error":{"code":"model_not_found","message":"model does not exist"}}',null,now);expect(missing.category).toBe("model_unavailable");expect(missing.affectsHealth).toBe(true);
   const policy=classifyUpstreamError(403,'{"error":{"code":"content_policy_violation","message":"policy"}}',null,now);expect(policy.category).toBe("invalid_request");expect(policy.affectsHealth).toBe(false);
+  const messageOnly=classifyUpstreamError(403,'{"error":{"message":"Your request violates our content policy"}}',null,now);expect(messageOnly.category).toBe("invalid_request");expect(messageOnly.affectsHealth).toBe(false);
  });
 
 });
