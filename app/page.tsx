@@ -47,7 +47,7 @@ export default async function HomePage() {
 
       <section className="mt-14">
         <div className="mb-4 flex items-baseline justify-between">
-          <h2 className="text-xl font-semibold">可用模型</h2>
+          <h2 className="text-xl font-semibold">模型目录</h2>
           <Link href="/models" className="font-mono text-xs text-muted hover:text-accent">完整目录 →</Link>
         </div>
         <ModelTable channels={channels} />

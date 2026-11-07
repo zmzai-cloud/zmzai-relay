@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { healthLabels } from "@/providers/channels/health-labels";
 import { Badge, Button, Input } from "@zmzai/theme";
 import { cnyMicrosLabel, cnyYuanToMicros, microsToCnyYuan } from "@/providers/billing/currency";
 import { OFFICIAL_PRICES } from "@/providers/catalog/official-prices";
@@ -66,7 +67,7 @@ function toPayload(form: ChannelForm, requireKey: boolean) {
 function formatTestResult(json: ChannelTestResult): string {
   const completion = json.completion;
   if (completion?.ok) return `推理连通 (${completion.latencyMs}ms · ${completion.model})`;
-  if (completion) return `推理失败：${completion.status || completion.error || "未知"}（models ${json.models?.status ?? "?"}）`;
+  if (completion) return `推理失败：${healthLabels[completion.error ?? ""] ?? completion.error ?? (completion.status || "未知")}（models ${json.models?.status ?? "?"}）`;
   if (json.models?.ok) return `已连通 (${json.models.latencyMs}ms，无模型映射)`;
   return `连接失败：${json.models?.status || json.models?.error || "未知"}`;
 }
@@ -182,12 +183,7 @@ export function ChannelAdminPanel({ initialChannels }: { initialChannels: Channe
                     <td className="px-4 py-3 font-mono text-xs text-muted">×{channel.executeMultiplier ?? 1}</td>
                     <td className="px-4 py-3">
                       <Badge variant={channel.enabled ? "success" : "outline"} size="sm">{channel.enabled ? "启用" : "停用"}</Badge>
-                      {(() => {
-                        const cooling = channel.cooldownUntil ? new Date(channel.cooldownUntil).getTime() > Date.now() : false;
-                        if (cooling) return <span className="mt-1 block"><Badge variant="warning" size="sm">冷却中至 {new Date(channel.cooldownUntil as string).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}</Badge></span>;
-                        if ((channel.consecutiveFailures ?? 0) > 0) return <span className="mt-1 block"><Badge variant="warning" size="sm">连续失败 {channel.consecutiveFailures}</Badge></span>;
-                        return null;
-                      })()}
+
                     </td>
                     <td className="px-4 py-3 text-right">
                       <Button type="button" variant={editingId === channel._id ? "secondary" : "ghost"} size="sm" onClick={() => beginEdit(channel)}>{editingId === channel._id ? "编辑中" : "编辑"}</Button>

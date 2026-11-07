@@ -14,7 +14,8 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ mo
   const { model: slug } = await params;
   const target = decodeURIComponent(slug);
   const channels = await getPublicChannels();
-  const found = channels.flatMap((channel) => channel.models.map((model) => ({ channel: channel.channel, model }))).find((item) => item.model.model === target);
+  const matches = channels.flatMap((channel) => channel.models.map((model) => ({ channel: channel.channel, model }))).filter((item) => item.model.model === target);
+  const found = matches.find((item) => item.model.available) ?? matches[0];
   if (!found) notFound();
   const { model, channel } = found;
   const example = `curl -N https://m.zmzai.cloud/api/v1/chat/completions \\
@@ -38,8 +39,8 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ mo
         eyebrow="模型详情"
         title={model.model}
         titleClassName="font-mono"
-        description="价格为每 1K token 的人民币单价；缓存未单独配置价格时按输入价计费。"
-        actions={<Badge variant="outline" size="sm">渠道 {channel}</Badge>}
+        description="以下为对应渠道每 1K token 的人民币实际单价；自动切换渠道时，最终费用按实际使用的渠道计算。"
+        actions={<><Badge variant="outline" size="sm">渠道 {channel}</Badge><Badge variant={model.available ? "success" : "warning"} size="sm">{model.available ? "可路由" : "暂不可用"}</Badge></>}
       />
 
       <div className="mt-8 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-line bg-line sm:grid-cols-3 lg:grid-cols-6">
@@ -50,6 +51,14 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ mo
           </div>
         ))}
       </div>
+
+      {matches.length > 1 ? <div className="mt-8 overflow-x-auto rounded-lg border border-line">
+        <table className="w-full min-w-[36rem] text-left text-sm">
+          <caption className="bg-surface p-3 text-left font-medium">各渠道实际价格 / 1K</caption>
+          <thead><tr><th className="p-3">渠道</th><th className="p-3">状态</th><th className="p-3">输入</th><th className="p-3">输出</th><th className="p-3">缓存读</th><th className="p-3">缓存写</th></tr></thead>
+          <tbody>{matches.map(({channel: name, model: item}) => <tr key={name} className="border-t border-line"><td className="p-3">{name}</td><td className="p-3">{item.available ? "可路由" : "暂不可用"}</td><td className="p-3">{moneyMicros(item.inputPricePer1kMicros)}</td><td className="p-3">{moneyMicros(item.outputPricePer1kMicros)}</td><td className="p-3">{moneyMicros(item.cacheReadPricePer1kMicros)}</td><td className="p-3">{moneyMicros(item.cacheWritePricePer1kMicros)}</td></tr>)}</tbody>
+        </table>
+      </div> : null}
 
       <div className="mt-8">
         <p className="font-mono text-xs text-muted">推理强度 reasoning_effort</p>

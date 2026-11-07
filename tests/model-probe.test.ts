@@ -8,6 +8,10 @@ describe("model probing", () => {
     upstream.fetch.mockResolvedValueOnce(new Response('secret-value', { status }));
     const result = await probeModel(input); expect(result.ok).toBe(false); expect(result.category).toBe(category); expect(JSON.stringify(result)).not.toContain("secret-value");
   });
+  it("distinguishes exhausted quota from ordinary rate limiting", async () => {
+    upstream.fetch.mockResolvedValueOnce(new Response('{"error":{"code":"1310","message":"已达到每周/每月使用上限"}}',{status:429}));
+    const result=await probeModel(input);expect(result.category).toBe("quota_exhausted");expect(result.ok).toBe(false);
+  });
   it("reports success only when the response has choices", async () => {
     upstream.fetch.mockResolvedValueOnce(Response.json({choices:[{message:{role:"assistant",content:"ok"}}]})); expect((await probeModel(input)).ok).toBe(true);
     upstream.fetch.mockResolvedValueOnce(Response.json({})); expect((await probeModel(input)).ok).toBe(false);

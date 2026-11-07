@@ -21,7 +21,7 @@ export default async function ModelsPage() {
         title="模型广场"
         description={
           <>
-            价格为每 1K token 的人民币单价，缓存读取享受折扣价。调用时无需指定渠道，系统按优先级自动路由；如需精确控制，可在请求体传入 <code className="font-mono text-xs">channel</code> 参数。
+            价格为每 1K token 的人民币实际单价，按最终使用的渠道计费。自动路由或故障切换可能使用不同渠道，实际价格随渠道变化；如需固定渠道，可在请求体传入 <code className="font-mono text-xs">channel</code> 参数。
           </>
         }
       />

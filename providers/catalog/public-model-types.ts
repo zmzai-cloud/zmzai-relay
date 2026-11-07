@@ -18,6 +18,7 @@ export interface PublicModel {
 
 export interface PublicChannelModel {
   model: string;
+  available: boolean;
   inputPricePer1kMicros: number;
   outputPricePer1kMicros: number;
   cacheReadPricePer1kMicros: number;

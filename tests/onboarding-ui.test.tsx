@@ -54,7 +54,7 @@ describe("draft workflow",()=>{
   for(const item of screen.getAllByLabelText("输出售价"))fireEvent.change(item,{target:{value:"2"}});
   fireEvent.click(screen.getByRole("button",{name:"保存草稿"}));await screen.findByText(/草稿已保存/);
   fireEvent.click(screen.getAllByRole("button",{name:"测试此模型"})[0]);await screen.findByText("测试通过");
-  fireEvent.click(screen.getAllByRole("button",{name:"测试此模型"})[1]);await screen.findByText("余额不足");
+  fireEvent.click(screen.getAllByRole("button",{name:"测试此模型"})[1]);await screen.findByText("上游余额不足");
   fireEvent.click(screen.getByRole("button",{name:"确认上线"}));expect((await screen.findByRole("alert")).textContent).toContain("渠道配置已变更");
  });
  it("lets administrators inspect and apply changed live configuration",async()=>{

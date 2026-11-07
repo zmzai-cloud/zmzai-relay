@@ -11,6 +11,9 @@ import {saveDraft,publishDraft,getDraft,updateDraft,testDraftModel,draftSchema,i
 const sync=vi.hoisted(()=>({hold:false,waiting:0,release:undefined as (()=>void)|undefined}));
 vi.mock("@/providers/network/safe-upstream-fetch",()=>({validateUpstreamUrl:async(input:string)=>{const u=new URL(input);if(u.protocol!=="https:"||u.username||u.password||u.hostname==="127.0.0.1")throw new Error("渠道地址不安全")},safeUpstreamFetch:async()=>{if(sync.hold){sync.waiting++;if(sync.waiting===2)sync.release?.();else await new Promise<void>(r=>sync.release=r)}return Response.json({choices:[{message:{role:"assistant",content:"ok"}}]})}}));
 import {ChannelModel} from "@/providers/database/mongodb/models/channel";
+import {recordModelFailure,recordModelSuccess,isModelCooling,claimModelRecovery} from "@/providers/channels/model-health";
+import {ModelHealthModel} from "@/providers/database/mongodb/models/model-health";
+import {classifyUpstreamError} from "@/providers/channels/upstream-errors";
 import {ModelProbeModel} from "@/providers/database/mongodb/models/model-probe";
 import {AdminAuditModel} from "@/providers/database/mongodb/models/admin-audit";
 import {ModelPriceModel} from "@/providers/database/mongodb/models/model-price";
@@ -105,6 +108,29 @@ describe("isolated onboarding",()=>{
  it("rejects a rebase when the live configuration changes after inspection",async()=>{
   const c=await ChannelModel.create({name:"existing",baseUrl:"https://example.com/v1",apiKey:"secret",models:[],enabled:true});const d=await saveDraft(admin,{channel:{kind:"existing",id:String(c._id)},models:[model]});
   const review=await inspectDraftChanges(admin,d.id,d.revision);await ChannelModel.findByIdAndUpdate(c._id,{$set:{priority:33}});await expect(rebaseDraft(admin,d.id,d.revision,review.token)).rejects.toThrow(/变更/);
+ });
+
+ it("isolates cooldown and recovery for each channel/model pair",async()=>{
+  await ModelHealthModel.createIndexes();const channelId=new mongoose.Types.ObjectId();const config={channelId,publicModel:"a",fingerprint:"one"};
+  const failure=classifyUpstreamError(503,"",null);await Promise.all([1,2,3].map(()=>recordModelFailure(config,failure)));
+  const a=await ModelHealthModel.findOne({channelId,publicModel:"a"}).select("+fingerprint").lean();expect(a?.consecutiveFailures).toBe(3);expect(isModelCooling(a,"one")).toBe(true);expect(isModelCooling(a,"new-config")).toBe(false);
+  expect(await ModelHealthModel.findOne({channelId,publicModel:"b"})).toBeNull();await recordModelSuccess({...config,publicModel:"b"});expect(isModelCooling(await ModelHealthModel.findOne({channelId,publicModel:"a"}).select("+fingerprint").lean(),"one")).toBe(true);
+  await recordModelSuccess(config);const recovered=await ModelHealthModel.findOne({channelId,publicModel:"a"}).select("+fingerprint").lean();expect(isModelCooling(recovered,"one")).toBe(false);expect(recovered?.lastSuccessAt).toBeTruthy();
+ });
+ it("immediately pauses quota failures but never counts invalid user input",async()=>{
+  const config={channelId:new mongoose.Types.ObjectId(),publicModel:"a",fingerprint:"one"};await recordModelFailure(config,classifyUpstreamError(400,"",null));expect(await ModelHealthModel.countDocuments()).toBe(0);
+  await recordModelFailure(config,classifyUpstreamError(429,'{"error":{"code":"1310"}}',null));const h=await ModelHealthModel.findOne({channelId:config.channelId,publicModel:"a"}).select("+fingerprint").lean();expect(h?.category).toBe("quota_exhausted");expect(isModelCooling(h,"one")).toBe(true);
+ });
+
+ it("does not carry old-credential failure history into the new configuration",async()=>{
+  const key={channelId:new mongoose.Types.ObjectId(),publicModel:"a",fingerprint:"old"};await recordModelFailure(key,classifyUpstreamError(503,"",null));
+  await recordModelSuccess({...key,fingerprint:"new"});const h=await ModelHealthModel.findOne({channelId:key.channelId,publicModel:"a"}).select("+fingerprint").lean();expect(h?.lastFailureAt??null).toBeNull();expect(h?.lastSuccessAt).toBeTruthy();
+ });
+
+ it("allows only one recovery probe after a quota cooldown expires",async()=>{
+  await ModelHealthModel.createIndexes();const now=new Date();const key={channelId:new mongoose.Types.ObjectId(),publicModel:"a",fingerprint:"one"};await recordModelFailure(key,classifyUpstreamError(429,'{"error":{"code":"1310"}}',null,now),now);
+  const later=new Date(now.getTime()+3600001);const claims=await Promise.all(Array.from({length:10},()=>claimModelRecovery(key,later,60000)));expect(claims.filter(Boolean)).toHaveLength(1);
+  expect(await claimModelRecovery(key,new Date(later.getTime()+60001),60000)).toBeTruthy();
  });
 
 });

@@ -12,6 +12,7 @@ type FlatModel = {
   key: string;
   channel: string;
   model: string;
+  available: boolean;
   maxInputTokens: number;
   inputPricePer1kMicros: number;
   outputPricePer1kMicros: number;
@@ -43,6 +44,7 @@ export function ModelTable({ channels }: { channels: PublicChannel[] }) {
           key: `${channel.channel}-${model.model}`,
           channel: channel.channel,
           model: model.model,
+          available: model.available,
           maxInputTokens: model.maxInputTokens,
           inputPricePer1kMicros: model.inputPricePer1kMicros,
           outputPricePer1kMicros: model.outputPricePer1kMicros,
@@ -97,12 +99,14 @@ export function ModelTable({ channels }: { channels: PublicChannel[] }) {
         />
         <span className="font-mono text-[11px] text-ink-3">{visible.length}</span>
       </div>
+      <p className="text-xs text-muted">“可路由”表示当前没有阻断记录，不保证上游实时可用。价格按实际使用的渠道计算。</p>
       <div className="overflow-x-auto rounded-lg border border-line bg-bg">
         <table className="w-full min-w-[44rem] border-collapse text-sm">
           <thead>
             <tr className="border-b border-line bg-surface text-left font-mono text-xs text-muted">
               <th className="px-4 py-2.5 font-normal">模型</th>
               <th className="px-4 py-2.5 font-normal">渠道</th>
+              <th className="px-4 py-2.5 font-normal">当前状态</th>
               {thSort("context")}
               {thSort("input")}
               {thSort("output")}
@@ -119,6 +123,7 @@ export function ModelTable({ channels }: { channels: PublicChannel[] }) {
                   </Link>
                 </td>
                 <td className="px-4 py-3 font-mono text-xs text-muted">{row.channel}</td>
+                <td className="px-4 py-3 text-xs">{row.available ? "可路由" : "暂不可用"}</td>
                 <td className="px-4 py-3 text-right font-mono text-xs text-muted">{row.maxInputTokens.toLocaleString()}</td>
                 <td className="px-4 py-3 text-right font-mono text-xs">{moneyMicros(row.inputPricePer1kMicros)}</td>
                 <td className="px-4 py-3 text-right font-mono text-xs">{moneyMicros(row.outputPricePer1kMicros)}</td>

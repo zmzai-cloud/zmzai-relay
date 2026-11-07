@@ -1,9 +1,12 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { Badge, PageHeader } from "@zmzai/theme";
 import { RelayShell } from "@/components/relay-shell";
 import { getCurrentUser } from "@/providers/auth/session";
 import { connectMongo } from "@/providers/database/mongodb/connection";
 import { ChannelModel } from "@/providers/database/mongodb/models/channel";
+import { ModelHealthModel } from "@/providers/database/mongodb/models/model-health";
+import { summarizeModelHealth } from "@/providers/channels/model-routing";
 import { ChannelAttemptModel } from "@/providers/database/mongodb/models/channel-attempt";
 import { UsageModel } from "@/providers/database/mongodb/models/usage";
 import { cnyMicrosLabel } from "@/providers/billing/currency";
@@ -39,10 +42,10 @@ export default async function AdminPage() {
   await connectMongo();
   const since24h = new Date(Date.now() - 86400000);
   const since7d = new Date(Date.now() - 7 * 86400000);
-  const [day, week, channels, attemptRows] = await Promise.all([
+  const [day, week, channels, attemptRows, health] = await Promise.all([
     usageWindow(since24h),
     usageWindow(since7d),
-    ChannelModel.find().sort({ priority: 1 }).lean(),
+    ChannelModel.find().select("+apiKey").sort({ priority: 1 }).lean(),
     // 渠道健康：最近 24h 每渠道调用数/成功率/平均延迟 + 最近一条失败原因
     ChannelAttemptModel.aggregate([
       { $match: { createdAt: { $gte: since24h } } },
@@ -56,9 +59,10 @@ export default async function AdminPage() {
         lastAt: { $first: "$createdAt" },
       } },
     ]),
+    ModelHealthModel.find().select("+fingerprint").lean(),
   ]);
+  const {blocked:blockedCount,pending:pendingCount,blockedByChannel}=summarizeModelHealth(channels,health);
   const attemptByChannel = new Map(attemptRows.map((row) => [String(row._id), row]));
-  const now = Date.now();
 
   const stats: Array<[string, string, string, "danger" | null]> = [
     ["24h 请求", day.requests.toLocaleString(), `成功率 ${successRate(day) === null ? "—" : `${successRate(day)}%`}`, null],
@@ -83,8 +87,9 @@ export default async function AdminPage() {
           </div>
         ))}
       </div>
+      {blockedCount+pendingCount>0?<div role="status" className="mt-6 rounded-lg border border-danger/40 bg-danger/5 p-4 text-sm"><span className="font-medium text-danger">{blockedCount} 个渠道模型暂时停止路由，{pendingCount} 个等待重试确认。</span> 可在 <Link href="/admin/models" className="text-accent underline underline-offset-4">模型与价格</Link> 查看失败原因和下次尝试时间。</div>:null}
       <h2 className="mt-10 text-lg font-semibold">渠道健康度</h2>
-      <p className="mt-1 text-xs text-muted">统计窗口为最近 24 小时；连续失败 3 次的渠道自动冷却 5 分钟，手动测试推理成功可解除。</p>
+      <p className="mt-1 text-xs text-muted">统计窗口为最近 24 小时；健康状态按渠道和模型分别记录，失败的模型不会暂停同渠道的其他模型。</p>
       <div className="mt-3 overflow-x-auto rounded-lg border border-line">
         <table className="w-full min-w-[52rem] border-collapse text-sm">
           <thead>
@@ -103,15 +108,13 @@ export default async function AdminPage() {
               const row = attemptByChannel.get(String(channel._id));
               const attempts = row?.attempts ?? 0;
               const rate = attempts === 0 ? null : Math.round(((row?.completed ?? 0) / attempts) * 100);
-              const cooling = channel.cooldownUntil ? new Date(channel.cooldownUntil).getTime() > now : false;
               const degraded = rate !== null && rate < 90 && attempts >= 5;
               return (
                 <tr key={String(channel._id)} className={degraded ? "bg-danger/5" : undefined}>
                   <td className="px-4 py-3 font-medium">{channel.name}</td>
                   <td className="px-4 py-3">
                     <Badge variant={channel.enabled ? "success" : "outline"} size="sm">{channel.enabled ? "启用" : "停用"}</Badge>
-                    {cooling ? <span className="ml-1.5"><Badge variant="warning" size="sm">冷却中</Badge></span> : null}
-                    {!cooling && (channel.consecutiveFailures ?? 0) > 0 ? <span className="ml-1.5"><Badge variant="warning" size="sm">失败 {channel.consecutiveFailures}</Badge></span> : null}
+                    {(blockedByChannel.get(String(channel._id))??0)>0 ? <span className="ml-1.5"><Badge variant="warning" size="sm">{blockedByChannel.get(String(channel._id))} 个模型暂停</Badge></span> : null}
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-muted">P{channel.priority}</td>
                   <td className="px-4 py-3 font-mono text-xs text-muted">{attempts === 0 ? "—" : attempts}</td>

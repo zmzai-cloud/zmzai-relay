@@ -1,6 +1,9 @@
 import { ChannelModel } from "@/providers/database/mongodb/models/channel";
 import { ModelPriceModel } from "@/providers/database/mongodb/models/model-price";
 import { cnyMicrosLabel } from "@/providers/billing/currency";
+import { effectiveCachePrices, effectivePrice } from "@/providers/catalog/price-preview";
+import { ModelHealthModel } from "@/providers/database/mongodb/models/model-health";
+import { selectModelCandidates, type RoutingHealth } from "@/providers/channels/model-routing";
 
 // 类型与 moneyMicros 定义在 client-safe 模块：client 组件（model-table 等）
 // 必须从 public-model-types 引用，否则 Mongoose 代码会被打进客户端 bundle。
@@ -9,13 +12,12 @@ export { type PublicModel, type PublicChannelModel, type PublicChannel, moneyMic
 import { type PublicChannel, type PublicChannelModel, type PublicModel, moneyMicros } from "@/providers/catalog/public-model-types";
 
 /** @deprecated Use `getPublicChannels()` instead — channel-first catalog. */
-export async function getPublicModels(): Promise<PublicModel[]> {
-  const now = new Date();
+export async function getPublicModels(snapshot?: PublicChannel[]): Promise<PublicModel[]> {
   const [prices, channels] = await Promise.all([
     ModelPriceModel.find({ enabled: true, publicVisible: { $ne: false } }).sort({ model: 1 }).lean(),
-    ChannelModel.find({ enabled: true, $or: [{ cooldownUntil: null }, { cooldownUntil: { $lte: now } }] }).select("models").lean(),
+    snapshot ? Promise.resolve(snapshot) : getPublicChannels(),
   ]);
-  const routable = new Set(channels.flatMap((channel) => channel.models.map((mapping) => mapping.public)));
+  const routable = new Set(channels.flatMap((channel) => channel.models.filter((mapping) => mapping.available).map((mapping) => mapping.model)));
   return prices.map((price) => ({
     model: price.model,
     inputPricePer1kMicros: price.inputPricePer1kMicros,
@@ -29,14 +31,18 @@ export async function getPublicModels(): Promise<PublicModel[]> {
   }));
 }
 
-/** 渠道优先目录：以渠道为主键，每个渠道下列出可用模型（含价格）。
- *  冷却中的渠道不进入目录——消费方（模型选择器/定价页）展示的应是有健康渠道的模型。 */
+/** 目录保留公开模型并显示当前路由状态；调用选择器单独过滤不可用项。 */
 export async function getPublicChannels(): Promise<PublicChannel[]> {
   const now = new Date();
   const [prices, channels] = await Promise.all([
     ModelPriceModel.find({ enabled: true, publicVisible: { $ne: false } }).lean(),
-    ChannelModel.find({ enabled: true, $or: [{ cooldownUntil: null }, { cooldownUntil: { $lte: now } }] }).sort({ priority: 1 }).lean(),
+    ChannelModel.find({ enabled: true }).select("+apiKey").sort({ priority: 1 }).lean(),
   ]);
+  let health: RoutingHealth[] = [];
+  if (channels.length) {
+    try { health = await ModelHealthModel.find({channelId:{$in:channels.map(c=>c._id)}}).select("+fingerprint").lean(); }
+    catch { console.error("读取模型健康状态失败，目录暂按可用展示"); }
+  }
   const priceMap = new Map(prices.map((p) => [p.model, p]));
   return channels.map((channel) => ({
     channel: channel.name,
@@ -45,12 +51,15 @@ export async function getPublicChannels(): Promise<PublicChannel[]> {
       .filter((mapping) => priceMap.has(mapping.public))
       .map((mapping) => {
         const p = priceMap.get(mapping.public)!;
+        const actual = effectivePrice(p, channel.executeMultiplier ?? 1);
+        const cache = effectiveCachePrices(actual);
         return {
           model: mapping.public,
-          inputPricePer1kMicros: p.inputPricePer1kMicros,
-          outputPricePer1kMicros: p.outputPricePer1kMicros,
-          cacheReadPricePer1kMicros: p.cacheReadPricePer1kMicros,
-          cacheWritePricePer1kMicros: p.cacheWritePricePer1kMicros,
+          available: selectModelCandidates([channel],health,mapping.public,now).available.length>0,
+          inputPricePer1kMicros: actual.inputPricePer1kMicros,
+          outputPricePer1kMicros: actual.outputPricePer1kMicros,
+          cacheReadPricePer1kMicros: cache.cacheRead,
+          cacheWritePricePer1kMicros: cache.cacheWrite,
           maxInputTokens: p.maxInputTokens,
           maxOutputTokens: p.maxOutputTokens,
           allowedReasoningEfforts: p.allowedReasoningEfforts,
@@ -73,8 +82,8 @@ export interface InternalModelSelectorData {
   channels: { id: string; name: string; models: { id: string; name: string; channel?: string; meta?: Record<string, string>; maxInputTokens: number; maxOutputTokens: number; allowedReasoningEfforts: string[] }[] }[];
 }
 
-export async function getInternalModelSelectorData(): Promise<InternalModelSelectorData> {
-  const channels = await getPublicChannels();
+export async function getInternalModelSelectorData(snapshot?: PublicChannel[]): Promise<InternalModelSelectorData> {
+  const channels = (snapshot ?? await getPublicChannels()).map(ch=>({...ch,models:ch.models.filter(m=>m.available)})).filter(ch=>ch.models.length>0);
   const seen = new Set<string>();
   const featured: InternalModelSelectorData["featured"] = [];
   for (const ch of channels) {
