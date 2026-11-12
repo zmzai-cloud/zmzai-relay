@@ -219,11 +219,24 @@ export async function POST(req: NextRequest) {
     const effective = effectivePrice(price, channel.executeMultiplier ?? 1);
     let received = false;
     try {
+      // 思考参数翻译（2026-11-12 推理档位事故）：GLM 系上游只认 thinking:{type}，
+      // OpenAI 的 reasoning_effort 透传会被静默忽略——客户端档位形同虚设
+      // （用户实测 minimal 档 hello 仍思考 12s）。渠道声明 thinkingFormat:"zai"
+      // 时翻译；off/minimal→disabled（GLM 无档位，极低=别想），low+→enabled。
+      let upstreamBody: Record<string, unknown> = { ...parsed.data, model: upstreamModel, requestId: undefined, stream_options: parsed.data.stream ? { include_usage: true } : undefined };
+      if ((channel as { thinkingFormat?: string | null }).thinkingFormat === "zai") {
+        const effort = parsed.data.reasoning_effort;
+        if (effort !== undefined) {
+          const { reasoning_effort: _dropped, ...rest } = upstreamBody as Record<string, unknown> & { reasoning_effort?: string };
+          // GLM 无思考档位：minimal（UI 极低档）= disabled，其余一律 enabled
+          upstreamBody = { ...rest, thinking: { type: effort === "minimal" ? "disabled" : "enabled", clear_thinking: false } };
+        }
+      }
       // 建连/首字节超时（channel.timeoutMs）：response header 到达即摘除，
       // 不覆盖流式读取——AbortSignal.timeout 曾把活跃长输出（PPT 几百行
       // 脚本）在 60/120s 硬切报 terminated/aborted。流式卡死保护由
       // streamResponse 的 idle watchdog（120s 无新数据才中断）负责。
-      const upstream = await safeUpstreamFetch(`${channel.baseUrl.replace(/\/$/, "")}/chat/completions`, { method: "POST", headers: { Authorization: `Bearer ${channel.apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ ...parsed.data, model: upstreamModel, requestId: undefined, stream_options: parsed.data.stream ? { include_usage: true } : undefined }), connectTimeoutMs: channel.timeoutMs, signal:heartbeat?.signal });
+      const upstream = await safeUpstreamFetch(`${channel.baseUrl.replace(/\/$/, "")}/chat/completions`, { method: "POST", headers: { Authorization: `Bearer ${channel.apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify(upstreamBody), connectTimeoutMs: channel.timeoutMs, signal: heartbeat?.signal });
       if (!upstream.ok) {
         const classified = classifyUpstreamError(upstream.status, await readUpstreamErrorBody(upstream), upstream.headers.get("retry-after"));
         failures.push(classified.category); if(classified.retryAt) retries.push(classified.retryAt);

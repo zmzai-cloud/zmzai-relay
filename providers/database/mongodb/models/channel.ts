@@ -74,6 +74,11 @@ export interface ChannelRecord {
   costMultiplier: number;
   /** 执行倍率：对用户实际收费 = 模型标准价 × 执行倍率（渠道按官方标准价折扣销售时配置） */
   executeMultiplier: number;
+  /** 上游思考参数格式（2026-11-12 推理档位事故）：GLM 系上游只认 `thinking:{type}`
+   *  不认 OpenAI 的 `reasoning_effort`——原样透传会被静默忽略，客户端档位形同虚设。
+   *  "zai" = 转发前翻译（minimal/off→disabled，low/medium/high→enabled）；
+   *  null/缺省 = 透传（OpenAI 兼容上游）。 */
+  thinkingFormat: "zai" | null;
   /** 连续失败次数：成功一次即清零，达 CHANNEL_COOLDOWN_THRESHOLD 进入冷却 */
   consecutiveFailures: number;
   /** 冷却截止时间：此时间前自动路由跳过该渠道（全部候选都在冷却时豁免） */
@@ -115,6 +120,7 @@ const channelSchema = new Schema<ChannelRecord>(
     modelCosts: { type: Schema.Types.Mixed, default: {} },
     costMultiplier: { type: Number, required: true, default: 1, min: 0.01, max: 100 },
     executeMultiplier: { type: Number, required: true, default: 1, min: 0.01, max: 100 },
+    thinkingFormat: { type: String, enum: ["zai"], default: null },
     consecutiveFailures: { type: Number, required: true, default: 0, min: 0 },
     cooldownUntil: { type: Date, default: null },
     enabled: { type: Boolean, required: true, default: true },
