@@ -273,9 +273,17 @@ export async function POST(req: NextRequest) {
 const UPSTREAM_STREAM_IDLE_TIMEOUT_MS = 120_000;
 
 function streamResponse(body: ReadableStream<Uint8Array>, usageId: import("mongoose").Types.ObjectId, channel: { _id: import("mongoose").Types.ObjectId; inputCostPer1kTokensMicros: number | null; outputCostPer1kTokensMicros: number | null; cacheReadCostPer1kTokensMicros: number | null; cacheWriteCostPer1kTokensMicros: number | null; modelCosts: Record<string, ModelCostOverride> }, upstreamModel: string, publicModel: string, price: { inputPricePer1kMicros: number; outputPricePer1kMicros: number; cacheReadPricePer1kMicros: number; cacheWritePricePer1kMicros: number }, started: number, traceId: string | null | undefined, healthKey: ModelHealthKey, recoveryLease: RecoveryLease | null, heartbeat: ReturnType<typeof startRecoveryHeartbeat> | null) {
-  const stream = new ReadableStream<Uint8Array>({ async start(controller) {
-    const reader = body.getReader(); const decoder = new TextDecoder(); let raw = ""; let upstreamComplete = false;
+  // 客户端提前断开（Lectern 拿到 stopReason 即收流/网络闪断）不是上游故障：
+  // 2026-11-13 实测「Invalid state: Controller is already closed」占"上游流读取
+  // 失败"的绝大多数——记 failed + recordModelFailure 会把渠道错误打进冷却。
+  let clientClosed = false;
+  let upstreamReader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+  const stream = new ReadableStream<Uint8Array>({
+    cancel() { clientClosed = true; upstreamReader?.cancel().catch(() => undefined); },
+    async start(controller) {
+    const reader = body.getReader(); upstreamReader = reader; const decoder = new TextDecoder(); let raw = ""; let upstreamComplete = false;
     try { for (;;) {
+      if (clientClosed) break;
       // idle watchdog：每次 read 最多等 IDLE_TIMEOUT，有新数据即重置。
       // 用 setTimeout + reject，read 成功后 clearTimeout 干净清理。
       let timer: NodeJS.Timeout | undefined;
@@ -309,8 +317,26 @@ function streamResponse(body: ReadableStream<Uint8Array>, usageId: import("mongo
         await settleReservation(usageId, { chargedMicros: charged, costMicros: cost, promptTokens: prompt, completionTokens: completion, cacheReadTokens: cacheRead, cacheWriteTokens: cacheWrite, channelId: channel._id, upstreamModel, latencyMs: Date.now() - started, inputPricePer1kMicros: price.inputPricePer1kMicros, outputPricePer1kMicros: price.outputPricePer1kMicros, cacheReadPricePer1kMicros: cachePrices.cacheRead, cacheWritePricePer1kMicros: cachePrices.cacheWrite, inputCostPer1kTokensMicros: inputCost, outputCostPer1kTokensMicros: outputCost, cacheReadCostPer1kTokensMicros: cacheReadCost, cacheWriteCostPer1kTokensMicros: cacheWriteCost }, { traceId });
         await recordModelSuccess(healthKey).catch(()=>console.error("记录模型健康状态失败"));
       }
-      controller.close();
-    } catch (e) { await releaseReservation(usageId); const isIdle = e instanceof Error && e.message.includes("IDLE_TIMEOUT"); const detail = e instanceof Error ? `${e.message}${e.cause ? `; cause=${(e.cause as Error).message ?? String(e.cause)}` : ""}` : String(e); const reason = isIdle ? "上游流 120s 无数据（idle 超时），疑似死连接" : `上游流读取失败: ${detail.slice(0, 150)}`; console.error("[stream-fail]", usageId.toString(), detail); await UsageModel.updateOne({ _id: usageId }, { $set: { status: "failed", lastError: reason.slice(0, 200) } }); if(!upstreamComplete) await recordModelFailure(healthKey,{category:"upstream",affectsHealth:true,retryAt:null}).catch(()=>console.error("记录模型健康状态失败")); else if(recoveryLease) await releaseModelRecovery(healthKey,recoveryLease).catch(()=>console.error("释放模型检测锁失败")); controller.error(new Error(reason)); } finally {heartbeat?.stop();}
+      try { controller.close(); } catch { /* 客户端已断开的竞态：controller 已关 */ }
+    } catch (e) {
+      const detail = e instanceof Error ? `${e.message}${e.cause ? `; cause=${(e.cause as Error).message ?? String(e.cause)}` : ""}` : String(e);
+      // 客户端断开：不记上游失败、不污染模型健康（已转发的内容无法计费则如实 unsettled）
+      const isClientGone = clientClosed || /Controller is already closed|AbortError/i.test(detail);
+      if (isClientGone) {
+        console.error("[stream-client-closed]", usageId.toString(), detail.slice(0, 120));
+        await releaseReservation(usageId).catch(() => undefined);
+        await UsageModel.updateOne({ _id: usageId }, { $set: { status: "unsettled", lastError: `客户端提前断开（非上游故障）: ${detail.slice(0, 120)}` } });
+        if(recoveryLease) await releaseModelRecovery(healthKey,recoveryLease).catch(()=>console.error("释放模型检测锁失败"));
+      } else {
+        await releaseReservation(usageId); const isIdle = e instanceof Error && e.message.includes("IDLE_TIMEOUT");
+        const reason = isIdle ? "上游流 120s 无数据（idle 超时），疑似死连接" : `上游流读取失败: ${detail.slice(0, 150)}`;
+        console.error("[stream-fail]", usageId.toString(), detail);
+        await UsageModel.updateOne({ _id: usageId }, { $set: { status: "failed", lastError: reason.slice(0, 200) } });
+        if(!upstreamComplete) await recordModelFailure(healthKey,{category:"upstream",affectsHealth:true,retryAt:null}).catch(()=>console.error("记录模型健康状态失败"));
+        else if(recoveryLease) await releaseModelRecovery(healthKey,recoveryLease).catch(()=>console.error("释放模型检测锁失败"));
+        try { controller.error(new Error(reason)); } catch { /* controller 已关（客户端断开的竞态）*/ }
+      }
+    } finally {heartbeat?.stop();}
   }});
   return new NextResponse(stream, { headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" } });
 }
